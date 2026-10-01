@@ -1,224 +1,803 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#2563eb">
-  <meta name="description" content="GridCards — a clean, accessible social card board.">
-  <title>GridCards — Blue & White</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>GridCards</title>
+
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- Login -->
-  <div id="authWrapper" class="auth-screen">
-    <form id="authForm" class="auth-card" novalidate>
-      <div class="auth-logo">GC</div>
+  <!-- =====================================================
+       LOGIN SCREEN
+  ====================================================== -->
+
+  <section id="authScreen" class="auth-screen">
+
+    <div class="auth-card">
+
+      <div class="auth-logo">
+        GC
+      </div>
+
       <h1>Welcome to GridCards</h1>
-      <p class="auth-subtitle">Enter your details to continue.</p>
 
-      <label for="authName">Name</label>
-      <input id="authName" type="text" autocomplete="name" maxlength="60" required>
+      <p class="auth-subtitle">
+        Enter your details to continue.
+      </p>
 
-      <label for="authAge">Age</label>
-      <input id="authAge" type="number" min="13" max="120" inputmode="numeric" required>
+      <form id="authForm">
 
-      <label for="captchaInput">Verification</label>
-      <div class="captcha-row">
-        <span id="captchaText" class="captcha" aria-label="Captcha code"></span>
-        <button id="refreshCaptcha" class="icon-btn" type="button" aria-label="Refresh captcha">↻</button>
-      </div>
-      <input id="captchaInput" type="text" autocomplete="off" autocapitalize="characters"
-             maxlength="5" placeholder="Enter the code" required>
+        <label for="authName">
+          Name
+        </label>
 
-      <p id="authError" class="form-error" role="alert" aria-live="polite"></p>
-      <button class="primary auth-submit" type="submit">Enter GridCards</button>
-    </form>
-  </div>
+        <input
+          id="authName"
+          type="text"
+          placeholder="Enter your name"
+          autocomplete="name"
+          required
+        >
 
-  <div class="phone" role="application" aria-label="GridCards mobile app">
-    <div class="phone-frame" aria-hidden="true"></div>
 
-    <div class="phone-screen" id="phoneScreen">
-      <header class="topbar">
-        <div class="topbar-inner">
-          <button class="logo" id="homeBtn" type="button" aria-label="GridCards home">GC</button>
+        <label for="authAge">
+          Age
+        </label>
 
-          <div class="search-wrap" role="search">
-            <span class="search-icon" aria-hidden="true">⌕</span>
-            <input id="search" type="search" placeholder="Search posts…" aria-label="Search posts"
-                   autocomplete="off">
-          </div>
+        <input
+          id="authAge"
+          type="number"
+          min="13"
+          max="120"
+          placeholder="Age"
+          required
+        >
 
-          <button id="profileBtn" class="icon-btn profile-btn" type="button" aria-label="Open profile">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="8" r="3"></circle>
-              <path d="M4 20c0-4 4-6 8-6s8 2 8 6"></path>
-            </svg>
+
+        <label>
+          Verification
+        </label>
+
+        <div class="captcha-row">
+
+          <div
+            id="captchaText"
+            class="captcha"
+            aria-label="Captcha code"
+          ></div>
+
+          <button
+            id="refreshCaptcha"
+            class="captcha-refresh"
+            type="button"
+            aria-label="Refresh captcha"
+          >
+            ↻
           </button>
+
         </div>
 
-        <div class="top-controls" aria-label="Accessibility and post controls">
-          <div class="control">
-            <span class="control-label">Contrast</span>
-            <label class="switch" aria-label="Toggle high contrast">
-              <input id="contrastToggle" type="checkbox">
-              <span class="switch-track"></span>
-            </label>
-          </div>
 
-          <div class="control text-size">
-            <span class="control-label">Text</span>
-            <button id="decText" class="small-btn" type="button" aria-label="Decrease text size">A−</button>
-            <button id="incText" class="small-btn" type="button" aria-label="Increase text size">A+</button>
-          </div>
+        <input
+          id="captchaInput"
+          type="text"
+          placeholder="Enter the code"
+          autocomplete="off"
+          required
+        >
 
-          <button id="openNewPost" class="small-btn new-post-btn" type="button">＋ New Post</button>
-        </div>
-      </header>
+        <p
+          id="authError"
+          class="form-error"
+          aria-live="polite"
+        ></p>
 
-      <main id="main" class="container">
-        <div class="feed-heading">
-          <div>
-            <p class="eyebrow">COMMUNITY</p>
-            <h2>Latest posts</h2>
-          </div>
-          <span id="postCount" class="post-count" aria-live="polite"></span>
-        </div>
 
-        <section id="grid" class="grid" aria-label="Post grid"></section>
-        <p id="emptyState" class="empty-state" hidden>No posts match your search.</p>
-      </main>
+        <button
+          class="auth-submit"
+          type="submit"
+        >
+          Enter GridCards
+        </button>
 
-      <!-- Full post view -->
-      <section id="postDetail" class="post-detail" aria-hidden="true" role="dialog"
-               aria-modal="true" aria-labelledby="detailTitle">
-        <div class="detail-header">
-          <button id="detailClose" class="small-btn" type="button">← Back</button>
-          <div class="detail-actions">
-            <button id="detailAudio" class="small-btn" type="button" aria-label="Play audio">🔊</button>
-            <select id="detailLangSelect" class="language-select" aria-label="Select target language"></select>
-            <button id="detailTranslate" class="small-btn" type="button">Translate</button>
-            <button id="detailShare" class="small-btn" type="button" aria-label="Share post">↗</button>
-            <button id="detailDelete" class="small-btn danger-btn" type="button" aria-label="Delete post" hidden>🗑</button>
-          </div>
-        </div>
+      </form>
 
-        <div class="detail-body">
-          <div id="detailMedia" class="detail-media" role="img" aria-label="Post media"></div>
-          <div class="detail-meta">
-            <span id="detailShownLang">original</span>
-          </div>
-          <h2 id="detailTitle" class="detail-title"></h2>
-          <p id="detailDescription" class="detail-description"></p>
-
-          <div class="detail-comments">
-            <div class="section-title-row">
-              <h3>Comments</h3>
-              <button id="detailShowOriginal" class="text-btn" type="button">Show original</button>
-            </div>
-            <div id="detailCommentsList" class="comments-list" aria-live="polite"></div>
-
-            <label for="detailCommentInput" class="sr-only">Write a comment</label>
-            <textarea id="detailCommentInput" rows="3" maxlength="500"
-                      placeholder="Write a comment…"></textarea>
-            <div class="modal-actions">
-              <button id="detailPostComment" class="primary" type="button">Post comment</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <button id="fabNewPost" class="fab" type="button" aria-label="Create new post">＋</button>
     </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       MAIN APPLICATION
+  ====================================================== -->
+
+  <div id="app" class="app hidden">
+
+    <div class="phone">
+
+      <div class="phone-screen">
+
+        <!-- TOP HEADER -->
+        <header class="topbar">
+
+          <div class="topbar-main">
+
+            <button
+              id="homeBtn"
+              class="logo"
+              aria-label="GridCards home"
+            >
+              GC
+            </button>
+
+
+            <div class="search-box">
+
+              <span class="search-icon">
+                ⌕
+              </span>
+
+              <input
+                id="search"
+                type="search"
+                placeholder="Search posts..."
+                aria-label="Search posts"
+              >
+
+            </div>
+
+
+            <button
+              id="profileBtn"
+              class="profile-button"
+              aria-label="Open profile"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="8"
+                  r="3"
+                ></circle>
+
+                <path
+                  d="M4 20c0-4 4-6 8-6s8 2 8 6"
+                ></path>
+              </svg>
+            </button>
+
+          </div>
+
+
+          <!-- CONTROLS -->
+
+          <div class="top-controls">
+
+            <label class="toggle-control">
+
+              <span>
+                Contrast
+              </span>
+
+              <input
+                id="contrastToggle"
+                type="checkbox"
+              >
+
+              <span class="toggle"></span>
+
+            </label>
+
+
+            <div class="text-controls">
+
+              <span>
+                Text
+              </span>
+
+              <button
+                id="decText"
+                class="control-button"
+                type="button"
+              >
+                A−
+              </button>
+
+              <button
+                id="incText"
+                class="control-button"
+                type="button"
+              >
+                A+
+              </button>
+
+            </div>
+
+
+            <button
+              id="openNewPost"
+              class="new-post-button"
+              type="button"
+            >
+              ＋ New Post
+            </button>
+
+          </div>
+
+        </header>
+
+
+        <!-- MAIN FEED -->
+
+        <main
+          id="main"
+          class="feed"
+        >
+
+          <div class="feed-heading">
+
+            <div>
+
+              <p class="eyebrow">
+                COMMUNITY
+              </p>
+
+              <h1>
+                Latest posts
+              </h1>
+
+            </div>
+
+            <span
+              id="postCount"
+              class="post-count"
+            >
+              0 posts
+            </span>
+
+          </div>
+
+
+          <section
+            id="grid"
+            class="grid"
+            aria-label="Post grid"
+          ></section>
+
+
+          <div
+            id="emptyState"
+            class="empty-state"
+            hidden
+          >
+
+            <div class="empty-icon">
+              🔎
+            </div>
+
+            <h2>
+              No posts found
+            </h2>
+
+            <p>
+              Try a different search term.
+            </p>
+
+          </div>
+
+        </main>
+
+
+        <!-- =================================================
+             POST DETAIL
+        ================================================== -->
+
+        <section
+          id="postDetail"
+          class="post-detail"
+          aria-hidden="true"
+        >
+
+          <div class="detail-topbar">
+
+            <button
+              id="detailClose"
+              class="back-button"
+              type="button"
+            >
+              ← Back
+            </button>
+
+
+            <div class="detail-actions">
+
+              <button
+                id="detailAudio"
+                class="detail-icon-button"
+                type="button"
+                aria-label="Play audio"
+              >
+                🔊
+              </button>
+
+
+              <div class="translate-controls">
+
+                <select
+                  id="detailLangSelect"
+                  aria-label="Select translation language"
+                >
+                  <option value="">
+                    Language
+                  </option>
+                </select>
+
+                <button
+                  id="detailTranslate"
+                  class="translate-button"
+                  type="button"
+                >
+                  Translate
+                </button>
+
+              </div>
+
+
+              <button
+                id="detailShare"
+                class="detail-icon-button"
+                type="button"
+                aria-label="Share post"
+              >
+                🔗
+              </button>
+
+
+              <button
+                id="detailDelete"
+                class="detail-icon-button delete-button"
+                type="button"
+                aria-label="Delete post"
+                hidden
+              >
+                🗑
+              </button>
+
+            </div>
+
+          </div>
+
+
+          <div class="detail-scroll">
+
+            <div
+              id="detailMedia"
+              class="detail-media"
+            ></div>
+
+
+            <div class="detail-content">
+
+              <span
+                id="detailShownLang"
+                class="detail-language"
+              >
+                ORIGINAL
+              </span>
+
+
+              <h2
+                id="detailTitle"
+                class="detail-title"
+              ></h2>
+
+
+              <p
+                id="detailDescription"
+                class="detail-description"
+              ></p>
+
+
+              <button
+                id="detailShowOriginal"
+                class="original-button"
+                type="button"
+              >
+                Show original
+              </button>
+
+
+              <div class="comments-section">
+
+                <div class="section-title">
+                  <h3>
+                    Comments
+                  </h3>
+                </div>
+
+
+                <div
+                  id="detailCommentsList"
+                  class="comments-list"
+                ></div>
+
+
+                <textarea
+                  id="detailCommentInput"
+                  rows="3"
+                  placeholder="Write a comment..."
+                ></textarea>
+
+
+                <button
+                  id="detailPostComment"
+                  class="primary-button"
+                  type="button"
+                >
+                  Post comment
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- =================================================
+             FLOATING BUTTON
+        ================================================== -->
+
+        <button
+          id="fabNewPost"
+          class="fab"
+          type="button"
+          aria-label="Create new post"
+        >
+          ＋
+        </button>
+
+      </div>
+
+    </div>
+
   </div>
 
-  <!-- Card template -->
+
+  <!-- =====================================================
+       CARD TEMPLATE
+  ====================================================== -->
+
   <template id="card-template">
-    <article class="card" tabindex="0">
-      <div class="media">
-        <img alt="" loading="lazy">
+
+    <article
+      class="card"
+      tabindex="0"
+    >
+
+      <div class="card-media">
+
+        <img
+          class="card-image"
+          alt=""
+        >
+
       </div>
-      <div class="card-body">
-        <h3 class="title"></h3>
-        <p class="description"></p>
+
+
+      <div class="card-content">
+
+        <h2 class="card-title"></h2>
+
+        <p class="card-description"></p>
+
       </div>
+
+
       <div class="card-actions">
-        <button class="action audio" type="button" aria-label="Play audio">🔊</button>
-        <button class="action comment" type="button" aria-label="View comments">💬</button>
-        <button class="action share" type="button" aria-label="Share post">↗</button>
-        <button class="action delete danger-action" type="button" aria-label="Delete post" hidden>🗑</button>
+
+        <button
+          class="card-action audio"
+          type="button"
+          aria-label="Play audio"
+        >
+          🔊
+        </button>
+
+        <button
+          class="card-action comment"
+          type="button"
+          aria-label="Comments"
+        >
+          💬
+        </button>
+
+        <button
+          class="card-action share"
+          type="button"
+          aria-label="Share"
+        >
+          🔗
+        </button>
+
+        <button
+          class="card-action delete"
+          type="button"
+          aria-label="Delete"
+          hidden
+        >
+          🗑
+        </button>
+
       </div>
+
     </article>
+
   </template>
 
-  <!-- Comments modal -->
-  <div id="commentModal" class="modal" role="dialog" aria-modal="true"
-       aria-hidden="true" aria-labelledby="commentTitle">
-    <div class="modal-content">
+
+  <!-- =====================================================
+       COMMENTS MODAL
+  ====================================================== -->
+
+  <div
+    id="commentModal"
+    class="modal"
+    aria-hidden="true"
+  >
+
+    <div class="modal-card">
+
       <div class="modal-header">
-        <h2 id="commentTitle">Comments</h2>
-        <button id="closeModal" class="icon-btn" type="button" aria-label="Close comments">×</button>
+
+        <h2>
+          Comments
+        </h2>
+
+        <button
+          id="closeModal"
+          class="modal-close"
+          type="button"
+        >
+          ×
+        </button>
+
       </div>
-      <div id="commentsList" class="comments-list" aria-live="polite"></div>
-      <textarea id="commentInput" rows="3" maxlength="500"
-                placeholder="Write a comment…" aria-label="Write a comment"></textarea>
-      <div class="modal-actions">
-        <button id="postComment" class="primary" type="button">Post comment</button>
-      </div>
+
+
+      <div
+        id="commentsList"
+        class="comments-list"
+      ></div>
+
+
+      <textarea
+        id="commentInput"
+        rows="3"
+        placeholder="Write a comment..."
+      ></textarea>
+
+
+      <button
+        id="postComment"
+        class="primary-button"
+        type="button"
+      >
+        Post comment
+      </button>
+
     </div>
+
   </div>
 
-  <!-- New post modal -->
-  <div id="newPostModal" class="modal" role="dialog" aria-modal="true"
-       aria-hidden="true" aria-labelledby="newPostTitle">
-    <div class="modal-content">
+
+  <!-- =====================================================
+       NEW POST MODAL
+  ====================================================== -->
+
+  <div
+    id="newPostModal"
+    class="modal"
+    aria-hidden="true"
+  >
+
+    <div class="modal-card">
+
       <div class="modal-header">
+
         <div>
-          <p class="eyebrow">CREATE</p>
-          <h2 id="newPostTitle">Create post</h2>
+
+          <p class="eyebrow">
+            COMMUNITY
+          </p>
+
+          <h2>
+            Create post
+          </h2>
+
         </div>
-        <button id="cancelCreate" class="icon-btn" type="button" aria-label="Close create post">×</button>
+
+        <button
+          id="cancelCreate"
+          class="modal-close"
+          type="button"
+        >
+          ×
+        </button>
+
       </div>
 
-      <label for="newTitle">Title</label>
-      <input id="newTitle" type="text" maxlength="100" placeholder="Give your post a title">
 
-      <label for="newDesc">Description</label>
-      <textarea id="newDesc" rows="4" maxlength="1000"
-                placeholder="Write a short description or announcement"></textarea>
+      <label for="newTitle">
+        Title
+      </label>
 
-      <label for="newImgUrl">Image URL <span class="muted">(optional)</span></label>
-      <input id="newImgUrl" type="url" placeholder="https://example.com/image.jpg">
+      <input
+        id="newTitle"
+        type="text"
+        maxlength="100"
+        placeholder="Post title"
+      >
 
-      <label for="newImgFile">Or upload an image <span class="muted">(optional)</span></label>
-      <input id="newImgFile" type="file" accept="image/*">
 
-      <div class="modal-actions">
-        <button id="createPost" class="primary" type="button">Publish post</button>
+      <label for="newDesc">
+        Description
+      </label>
+
+      <textarea
+        id="newDesc"
+        rows="5"
+        placeholder="Write your post..."
+      ></textarea>
+
+
+      <label for="newImgUrl">
+        Image URL
+      </label>
+
+      <input
+        id="newImgUrl"
+        type="url"
+        placeholder="https://example.com/image.jpg"
+      >
+
+
+      <div class="upload-divider">
+        <span>OR</span>
       </div>
+
+
+      <label
+        for="newImgFile"
+        class="file-label"
+      >
+        Upload image
+      </label>
+
+      <input
+        id="newImgFile"
+        type="file"
+        accept="image/*"
+      >
+
+
+      <button
+        id="createPost"
+        class="primary-button modal-submit"
+        type="button"
+      >
+        Publish post
+      </button>
+
     </div>
+
   </div>
 
-  <!-- Profile modal -->
-  <div id="profileModal" class="modal" role="dialog" aria-modal="true"
-       aria-hidden="true" aria-labelledby="profileTitle">
-    <div class="modal-content profile-card">
-      <div class="profile-avatar" id="profileAvatar">B</div>
-      <h2 id="profileTitle">Profile</h2>
-      <p id="profileName" class="profile-name"></p>
-      <p id="profileAge" class="muted"></p>
+
+  <!-- =====================================================
+       PROFILE MODAL
+  ====================================================== -->
+
+  <div
+    id="profileModal"
+    class="modal"
+    aria-hidden="true"
+  >
+
+    <div class="modal-card profile-card">
+
+      <button
+        id="closeProfile"
+        class="modal-close"
+        type="button"
+      >
+        ×
+      </button>
+
+
+      <div
+        id="profileAvatar"
+        class="profile-avatar"
+      >
+        G
+      </div>
+
+
+      <h2 id="profileName">
+        User
+      </h2>
+
+
+      <p id="profileAge">
+      </p>
+
+
       <div class="profile-stats">
-        <div><strong id="profilePostCount">0</strong><span>Posts</span></div>
-        <div><strong id="profileCommentCount">0</strong><span>Comments</span></div>
+
+        <div>
+
+          <strong
+            id="profilePostCount"
+          >
+            0
+          </strong>
+
+          <span>
+            My posts
+          </span>
+
+        </div>
+
+
+        <div>
+
+          <strong
+            id="profileCommentCount"
+          >
+            0
+          </strong>
+
+          <span>
+            Comments
+          </span>
+
+        </div>
+
       </div>
-      <button id="closeProfile" class="small-btn full-btn" type="button">Close</button>
+
+
+      <button
+        id="logoutButton"
+        class="secondary-button"
+        type="button"
+      >
+        Log out
+      </button>
+
     </div>
+
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="script.js" defer></script>
+  <!-- TOAST -->
+
+  <div
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite"
+  ></div>
+
+
+  <script src="script.js"></script>
+
 </body>
 </html>
