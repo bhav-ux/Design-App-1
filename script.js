@@ -1,1 +1,2113 @@
-const CURRENT_USER='bhav-ux',STORAGE_KEY='gridcards-posts-v5',TRANSLATE_PRI={type:'google',url:'https://translate.googleapis.com/translate_a/single'},TRANSLATE_FALLBACK={type:'libre',url:'https://libretranslate.de/translate'},LANGUAGES=[{code:'hi',name:'Hindi'},{code:'en',name:'English'},{code:'es',name:'Spanish'},{code:'zh',name:'Chinese (Simplified)'},{code:'zh-TW',name:'Chinese (Traditional)'},{code:'fr',name:'French'},{code:'de',name:'German'},{code:'ja',name:'Japanese'},{code:'ko',name:'Korean'},{code:'ru',name:'Russian'},{code:'bn',name:'Bengali'},{code:'ur',name:'Urdu'},{code:'ta',name:'Tamil'},{code:'ml',name:'Malayalam'},{code:'te',name:'Telugu'},{code:'gu',name:'Gujarati'},{code:'kn',name:'Kannada'},{code:'pa',name:'Punjabi'},{code:'vi',name:'Vietnamese'},{code:'id',name:'Indonesian'},{code:'sa',name:'Sanaskrit'}],DEFAULT_POSTS=[{id:'p1',title:'Community meeting — 10AM',description:'Join the project owners for the monthly update and Q&A.',img:'',lang:'en',comments:[],creator:'system',translations:{}},{id:'p2',title:'Maintenance window',description:'Services will be degraded for one hour during maintenance.',img:'',lang:'en',comments:[],creator:'ops-team',translations:{}},{id:'p3',title:'New feature: Dark mode',description:'Try the experimental dark mode and give feedback.',img:'',lang:'en',comments:[],creator:'system',translations:{}},{id:'p4',title:'Volunteer call',description:'We need volunteers for the outreach program next weekend.',img:'',lang:'en',comments:[],creator:'alice',translations:{}}];let posts=loadPosts(),activePost=null,bc,ws,currentFontSize=15;function loadPosts(){try{const r=localStorage.getItem(STORAGE_KEY);if(r){const p=JSON.parse(r);if(Array.isArray(p))return p}}catch(e){console.warn('loadPosts',e)}return DEFAULT_POSTS.map(p=>({...p,translations:{},comments:p.comments||[]}))}function savePosts(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(posts))}catch(e){console.warn('savePosts',e)}}function cryptoRandomId(){return Math.random().toString(36).slice(2,9)}function showToast(m,ms=2200){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),ms)}function isVideoUrl(u){return u?/\.(mp4|webm|ogg)(\?.*)?$/i.test(u):false}async function translateViaGoogle(t,tgt){const u=`${TRANSLATE_PRI.url}?client=gtx&sl=auto&tl=${encodeURIComponent(tgt)}&dt=t&q=${encodeURIComponent(t)}`,r=await fetch(u);if(!r.ok)throw new Error('Google translate failed');const d=await r.json();if(!Array.isArray(d)||!d[0])throw new Error('Unexpected Google response');return d[0].map(s=>s[0]).join('')}async function translateViaLibre(t,tgt){const r=await fetch(TRANSLATE_FALLBACK.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:t,source:'auto',target:tgt,format:'text'})});if(!r.ok)throw new Error('LibreTranslate failed');const j=await r.json();return j.translatedText||''}async function translateTextAPI(t,tgt){if(!t)return'';try{return await translateViaGoogle(t,tgt)}catch(e){console.warn('Google translate failed, falling back to Libre',e);try{return await translateViaLibre(t,tgt)}catch(err){console.error('All translation endpoints failed',err);throw err}}}async function translatePostAndComments(p,l){if(!p||!l)return;showToast('Translating...');try{const[tT,tD]=await Promise.all([translateTextAPI(p.title,l),translateTextAPI(p.description,l)]),c=p.comments||[],tC=await Promise.all(c.map(async(cm)=>{try{const tr=await translateTextAPI(cm.text,l);return{id:cm.id,translatedText:tr}}catch(e){return{id:cm.id,translatedText:cm.text}}}));p.translations=p.translations||{},p.translations[l]=p.translations[l]||{},p.translations[l].title=tT,p.translations[l].description=tD,p.translations[l].comments=p.translations[l].comments||{},tC.forEach(tc=>{p.translations[l].comments[tc.id]=tc.translatedText;const cm=p.comments.find(x=>x.id===tc.id);if(cm)cm.translations=cm.translations||{},cm.translations[l]=tc.translatedText}),p.displayLang=l,savePosts(),broadcast({type:'translate',postId:p.id,lang:l,title:tT,description:tD,comments:tC}),showToast('Translated'),activePost&&activePost.id===p.id&&(renderDetailComments(),document.getElementById('detailTitle').textContent=tT,document.getElementById('detailDescription').textContent=tD,document.getElementById('detailShownLang').textContent=l),renderPosts(document.getElementById('search').value)}catch(err){console.error(err),showToast('Translation failed. If CORS blocks remote APIs you can run a local proxy.')}}function createCardElement(p){const n=document.getElementById('card-template').content.cloneNode(true),a=n.querySelector('.card');a.dataset.id=p.id;const img=n.querySelector('img');img.alt=`Image for ${p.title}`,img.src=p.img&&p.img.trim()?p.img:generatePlaceholder(p.title);const tEl=n.querySelector('.title'),dEl=n.querySelector('.description');p.displayLang&&p.translations&&p.translations[p.displayLang]?(tEl.textContent=p.translations[p.displayLang].title||p.title,dEl.textContent=p.translations[p.displayLang].description||p.description):(tEl.textContent=p.title,dEl.textContent=p.description);const aB=n.querySelector('.action.audio'),cB=n.querySelector('.action.comment'),sB=n.querySelector('.action.share'),dB=n.querySelector('.action.delete');return aB.addEventListener('click',()=>playTTS(p)),cB.addEventListener('click',()=>openCommentsQuick(p)),sB.addEventListener('click',()=>sharePost(p)),p.creator===CURRENT_USER?(dB.hidden=false,dB.addEventListener('click',()=>confirmDelete(p))):dB.hidden=true,a.addEventListener('dblclick',()=>openPostDetail(p)),a}function renderPosts(f=''){const g=document.getElementById('grid');g.innerHTML='';const d=posts.filter(p=>(p.title+p.description).toLowerCase().includes(f.toLowerCase()));d.forEach(p=>{const c=createCardElement(p);g.appendChild(c),requestAnimationFrame(()=>c.classList.add('visible'))})}function generatePlaceholder(t=''){const w=600,h=360,bg='#f3f4f6',fg='#d1d5db',e=(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),s=`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='100%' height='100%' fill='${bg}'/><text x='50%' y='50%' font-family='Arial' font-size='26' fill='${fg}' dominant-baseline='middle' text-anchor='middle'>${e}</text></svg>`;return'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s)}function playTTS(p){const l=p.displayLang||p.lang||'en',txt=p.displayLang&&p.translations&&p.translations[p.displayLang]?`${p.translations[p.displayLang].title}. ${p.translations[p.displayLang].description}`:`${p.title}. ${p.description}`,u=new SpeechSynthesisUtterance(txt);u.lang=l,speechSynthesis.cancel(),speechSynthesis.speak(u),showToast('Playing audio')}const cM=document.getElementById('commentModal'),cmL=document.getElementById('commentsList'),cmI=document.getElementById('commentInput'),pCB=document.getElementById('postComment');let quickActivePost=null;function openCommentsQuick(p){quickActivePost=p,cmL.innerHTML='',(p.comments||[]).forEach(c=>{const d=document.createElement('div');d.textContent=c.text,cmL.appendChild(d)}),cM.setAttribute('aria-hidden','false'),cmI.value='',cmI.focus()}pCB.addEventListener('click',()=>{if(!quickActivePost)return;const t=cmI.value.trim();if(!t)return;const c={id:cryptoRandomId(),text:t,at:Date.now(),translations:{}};quickActivePost.comments.push(c),savePosts(),broadcast({type:'comment',postId:quickActivePost.id,comment:c}),openCommentsQuick(quickActivePost),showToast('Comment posted')}),document.getElementById('closeModal').addEventListener('click',()=>cM.setAttribute('aria-hidden','true'));const nPM=document.getElementById('newPostModal'),nPI=document.getElementById('newTitle'),nDI=document.getElementById('newDesc'),nUI=document.getElementById('newImgUrl'),nFI=document.getElementById('newImgFile'),cPB=document.getElementById('createPost'),ccB=document.getElementById('cancelCreate');function openNewPostModal(){nPI.value='',nDI.value='',nUI&&(nUI.value=''),nFI&&(nFI.value=''),nPM.setAttribute('aria-hidden','false'),nPI.focus()}document.getElementById('openNewPost').addEventListener('click',openNewPostModal);const fNP=document.getElementById('fabNewPost');fNP&&fNP.addEventListener('click',openNewPostModal),ccB&&ccB.addEventListener('click',()=>nPM.setAttribute('aria-hidden','true')),cPB&&cPB.addEventListener('click',()=>{const t=(nPI.value||'').trim(),d=(nDI.value||'').trim(),u=(nUI&&nUI.value||'').trim(),f=nFI&&nFI.files&&nFI.files[0];if(!t||!d)return void showToast('Please add a title and description');const cI=(img)=>{const p={id:'post_'+cryptoRandomId(),title:t,description:d,img:img||'',lang:'en',comments:[],creator:CURRENT_USER,translations:{}},g=document.getElementById('grid');posts.unshift(p),savePosts(),broadcast({type:'new-post',post:p});const c=createCardElement(p);g.insertBefore(c,g.firstChild),requestAnimationFrame(()=>c.classList.add('visible')),nPM.setAttribute('aria-hidden','true'),showToast('Post created'),scrollPhoneScreenToTop(),nFI&&(nFI.value=''),nUI&&(nUI.value='')};if(f){const r=new FileReader;r.onload=()=>cI(r.result),r.onerror=()=>showToast('Failed to read image file'),r.readAsDataURL(f)}else cI(u||'')});const dLS=document.getElementById('detailLangSelect');function populateLangSelect(){if(!dLS)return;dLS.innerHTML='';const o=document.createElement('option');o.value='',o.textContent='Choose language',dLS.appendChild(o),LANGUAGES.forEach(l=>{const opt=document.createElement('option');opt.value=l.code,opt.textContent=`${l.name} • ${l.code}`,dLS.appendChild(opt)})}populateLangSelect();const pD=document.getElementById('postDetail'),dM=document.getElementById('detailMedia'),dT=document.getElementById('detailTitle'),dD=document.getElementById('detailDescription'),dCL=document.getElementById('detailCommentsList'),dCI=document.getElementById('detailCommentInput'),dPC=document.getElementById('detailPostComment'),dAB=document.getElementById('detailAudio'),dTB=document.getElementById('detailTranslate'),dSB=document.getElementById('detailShare'),dDB=document.getElementById('detailDelete'),dC=document.getElementById('detailClose'),dSL=document.getElementById('detailShowOriginal'),dSLbl=document.getElementById('detailShownLang');function openPostDetail(p){activePost=p,dM.innerHTML='',p.img&&isVideoUrl(p.img)?(()=>{const v=document.createElement('video');v.src=p.img,v.controls=true,v.setAttribute('aria-label','Post video'),dM.appendChild(v)})():(()=>{const i=document.createElement('img');i.src=p.img&&p.img.trim()?p.img:generatePlaceholder(p.title),i.alt=`Image for ${p.title}`,dM.appendChild(i)})(),p.displayLang&&p.translations&&p.translations[p.displayLang]?(dT.textContent=p.translations[p.displayLang].title||p.title,dD.textContent=p.translations[p.displayLang].description||p.description,dSLbl.textContent=p.displayLang):(dT.textContent=p.title,dD.textContent=p.description,dSLbl.textContent='original'),renderDetailComments(),dDB.hidden=p.creator!==CURRENT_USER,pD.setAttribute('aria-hidden','false'),dC.focus()}function closePostDetail(){pD.setAttribute('aria-hidden','true'),activePost=null,dSLbl.textContent='original',dLS.value=''}function renderDetailComments(){dCL.innerHTML='';if(!activePost)return;const l=activePost.displayLang;(activePost.comments||[]).forEach(c=>{const d=document.createElement('div');d.textContent=l&&c.translations&&c.translations[l]?c.translations[l]:c.text,dCL.appendChild(d)})}dPC&&dPC.addEventListener('click',()=>{if(!activePost)return;const t=dCI.value.trim();if(!t)return;const c={id:cryptoRandomId(),text:t,at:Date.now(),translations:{}};activePost.comments.push(c),savePosts(),renderDetailComments(),dCI.value='',broadcast({type:'comment',postId:activePost.id,comment:c}),showToast('Comment posted')}),dC&&dC.addEventListener('click',closePostDetail),dAB&&dAB.addEventListener('click',()=>{activePost&&playTTS(activePost)}),dSB&&dSB.addEventListener('click',()=>{activePost&&sharePost(activePost)}),dTB&&dTB.addEventListener('click',async()=>{const s=dLS.value;if(!activePost)return;if(!s)return void showToast('Choose a language first');await translatePostAndComments(activePost,s)}),dSL&&dSL.addEventListener('click',()=>{activePost&&(delete activePost.displayLang,savePosts(),renderDetailComments(),dT.textContent=activePost.title,dD.textContent=activePost.description,dSLbl.textContent='original',renderPosts(document.getElementById('search').value))});function confirmDelete(p){if(p.creator!==CURRENT_USER)return void showToast('You can only delete your own posts');if(confirm('Delete this post permanently?'))deletePostWithAnimation(p.id)}dDB&&dDB.addEventListener('click',()=>{activePost&&confirmDelete(activePost)});function deletePostWithAnimation(id){const a=document.getElementById('grid').querySelector(`.card[data-id="${id}"]`);if(a){a.classList.add('removing');const rA=()=>{a.removeEventListener('transitionend',rA);const idx=posts.findIndex(p=>p.id===id);idx!==-1&&posts.splice(idx,1),savePosts(),broadcast({type:'delete-post',postId:id,by:CURRENT_USER}),activePost&&activePost.id===id&&closePostDetail(),renderPosts(document.getElementById('search').value)};a.addEventListener('transitionend',rA),setTimeout(()=>{document.contains(a)&&rA()},340)}else{const idx=posts.findIndex(p=>p.id===id);idx!==-1&&posts.splice(idx,1),savePosts(),broadcast({type:'delete-post',postId:id,by:CURRENT_USER}),activePost&&activePost.id===id&&closePostDetail(),renderPosts(document.getElementById('search').value)}}async function sharePost(p){const s={title:p.title,text:p.description,url:location.href+'#post-'+p.id};try{navigator.share?await navigator.share(s):await navigator.clipboard.writeText(`${s.title}\n${s.text}\n${s.url}`),showToast('Shared')}catch(e){showToast('Unable to share')}}function setupBroadcast(){'BroadcastChannel'in window&&(bc=new BroadcastChannel('gridcards-sync'),bc.onmessage=(ev)=>handleRemote(ev.data))}setupBroadcast();function broadcast(m){bc&&bc.postMessage(m),ws&&ws.readyState===WebSocket.OPEN&&(()=>{try{ws.send(JSON.stringify(m))}catch(e){}})()}function handleRemote(m){if(!m||!m.type)return;if(m.type==='comment'){const p=posts.find(x=>x.id===m.postId);p&&(!(p.comments||[]).some(c=>c.id===m.comment.id)&&p.comments.push(m.comment),savePosts(),activePost&&activePost.id===p.id&&(activePost=p,renderDetailComments()),renderPosts(document.getElementById('search').value))}else if(m.type==='translate'){const p=posts.find(x=>x.id===m.postId);if(p){const l=m.lang;p.translations=p.translations||{},p.translations[l]=p.translations[l]||{},p.translations[l].title=m.title,p.translations[l].description=m.description,p.translations[l].comments=p.translations[l].comments||{},(m.comments||[]).forEach(c=>{p.translations[l].comments[c.id]=c.translatedText;const cm=p.comments.find(x=>x.id===c.id);cm&&(cm.translations=cm.translations||{},cm.translations[l]=c.translatedText)}),p.displayLang=l,savePosts(),showToast('Translation received'),activePost&&activePost.id===p.id&&(activePost=p,dT.textContent=p.translations[l].title,dD.textContent=p.translations[l].description,renderDetailComments(),dSLbl.textContent=l),renderPosts(document.getElementById('search').value)}}else if(m.type==='new-post'){const i=m.post;i&&i.id&&!posts.some(p=>p.id===i.id)&&(i.translations=i.translations||{},posts.unshift(i),savePosts(),renderPosts(document.getElementById('search').value),showToast('New post received'))}else if(m.type==='delete-post')handleRemoteDelete(m.postId);else if(m.type==='ui'){if(m.key==='contrast')document.documentElement.classList.toggle('high-contrast',m.value);m.key==='fontSize'&&setFontSize(m.value,true)}}function handleRemoteDelete(id){const idx=posts.findIndex(p=>p.id===id);if(idx===-1)return;const a=document.getElementById('grid').querySelector(`.card[data-id="${id}"]`);if(a){a.classList.add('removing');const rA=()=>{a.removeEventListener('transitionend',rA);const idx2=posts.findIndex(p=>p.id===id);idx2!==-1&&posts.splice(idx2,1),savePosts(),activePost&&activePost.id===id&&closePostDetail(),renderPosts(document.getElementById('search').value)};a.addEventListener('transitionend',rA),setTimeout(()=>{document.contains(a)&&rA()},350)}else posts.splice(idx,1),savePosts(),activePost&&activePost.id===id&&closePostDetail(),renderPosts(document.getElementById('search').value)}const eSB=document.getElementById('enableSync'),sWI=document.getElementById('syncWsUrl');eSB&&eSB.addEventListener('click',()=>{const u=(sWI&&sWI.value||'').trim();if(!u)return void showToast('Provide WebSocket URL or leave blank');if(ws&&ws.readyState===WebSocket.OPEN)return ws.close(),eSB.textContent='Connect',void showToast('Disconnected');try{ws=new WebSocket(u),ws.addEventListener('open',()=>{showToast('WebSocket connected'),eSB.textContent='Disconnect'}),ws.addEventListener('message',ev=>{try{const d=JSON.parse(ev.data);handleRemote(d)}catch(e){}}),ws.addEventListener('close',()=>{showToast('WebSocket closed'),eSB.textContent='Connect'}),ws.addEventListener('error',()=>showToast('WebSocket error'))}catch(e){showToast('Invalid WebSocket URL')}});const cT=document.getElementById('contrastToggle'),iT=document.getElementById('incText'),dT2=document.getElementById('decText');cT&&cT.addEventListener('change',(e)=>{const en=e.target.checked;document.documentElement.classList.toggle('high-contrast',en),broadcast({type:'ui',key:'contrast',value:en})}),iT&&iT.addEventListener('click',()=>setFontSize(currentFontSize+1)),dT2&&dT2.addEventListener('click',()=>setFontSize(currentFontSize-1));function setFontSize(s,fr=false){currentFontSize=Math.max(13,Math.min(20,s)),document.documentElement.style.setProperty('--font-size',currentFontSize+'px'),fr||broadcast({type:'ui',key:'fontSize',value:currentFontSize})}const sI=document.getElementById('search');sI&&sI.addEventListener('input',(e)=>renderPosts(e.target.value)),window.addEventListener('keydown',(ev)=>{if(ev.key==='Escape'){const m=document.querySelectorAll('.modal[aria-hidden="false"], .post-detail[aria-hidden="false"]');m.forEach(el=>el.setAttribute('aria-hidden','true')),activePost=null}}),window.addEventListener('storage',(e)=>{if(e.key===STORAGE_KEY&&e.newValue)try{const np=JSON.parse(e.newValue);Array.isArray(np)&&(posts=np,renderPosts(sI.value))}catch(e){}});document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',(ev)=>{ev.target===m&&m.setAttribute('aria-hidden','true')})),nPM&&nPM.addEventListener('click',(ev)=>{ev.target===nPM&&nPM.setAttribute('aria-hidden','true')});function scrollPhoneScreenToTop(){const ps=document.querySelector('.phone-screen');ps&&(ps.scrollTop=0,requestAnimationFrame(()=>ps.scrollTop=0))}const aW=document.getElementById('authWrapper'),aF=document.getElementById('authForm'),aN=document.getElementById('authName'),aAge=document.getElementById('authAge'),cT3=document.getElementById('captchaText'),cI2=document.getElementById('captchaInput'),rC=document.getElementById('refreshCaptcha');function generateCaptcha(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',ch=[];for(let i=0;i<5;i++)ch.push(c[Math.floor(Math.random()*c.length)]);cT3.textContent=ch.join('')}rC.addEventListener('click',generateCaptcha),generateCaptcha(),aF.addEventListener('submit',(e)=>{e.preventDefault();const n=aN.value.trim(),a=parseInt(aAge.value.trim(),10),c=cI2.value.trim();if(''===n||isNaN(a))return alert('Enter valid name and age.');if(a<13)return alert('You must be at least 13 to continue.');if(c!==cT3.textContent)return alert('Captcha incorrect.'),generateCaptcha(),void(cI2.value='');aW.style.display='none'}),renderPosts(),setFontSize(currentFontSize),scrollPhoneScreenToTop();
+(() => {
+  "use strict";
+
+  const CURRENT_USER = "bhav-ux";
+  const STORAGE_KEY = "gridcards-posts-v6";
+  const USER_KEY = "gridcards-user-v1";
+  const FONT_KEY = "gridcards-font-size-v1";
+  const CONTRAST_KEY = "gridcards-contrast-v1";
+
+  const LANGUAGES = [
+    ["hi", "Hindi"],
+    ["en", "English"],
+    ["es", "Spanish"],
+    ["fr", "French"],
+    ["de", "German"],
+    ["it", "Italian"],
+    ["pt", "Portuguese"],
+    ["zh", "Chinese (Simplified)"],
+    ["zh-TW", "Chinese (Traditional)"],
+    ["ja", "Japanese"],
+    ["ko", "Korean"],
+    ["ru", "Russian"],
+    ["bn", "Bengali"],
+    ["ur", "Urdu"],
+    ["ta", "Tamil"],
+    ["te", "Telugu"],
+    ["gu", "Gujarati"],
+    ["kn", "Kannada"],
+    ["pa", "Punjabi"],
+    ["vi", "Vietnamese"],
+    ["id", "Indonesian"],
+    ["sa", "Sanskrit"]
+  ];
+
+  const DEFAULT_POSTS = [
+    {
+      id: "p1",
+      title: "Community meeting — 10AM",
+      description:
+        "Join the project owners for the monthly update and Q&A.",
+      img: "",
+      lang: "en",
+      comments: [],
+      creator: "system",
+      translations: {}
+    },
+    {
+      id: "p2",
+      title: "Maintenance window",
+      description:
+        "Services will be degraded for one hour during maintenance.",
+      img: "",
+      lang: "en",
+      comments: [],
+      creator: "ops-team",
+      translations: {}
+    },
+    {
+      id: "p3",
+      title: "New feature: Dark mode",
+      description:
+        "Try the experimental dark mode and give feedback.",
+      img: "",
+      lang: "en",
+      comments: [],
+      creator: "system",
+      translations: {}
+    },
+    {
+      id: "p4",
+      title: "Volunteer call",
+      description:
+        "We need volunteers for the outreach program next weekend.",
+      img: "",
+      lang: "en",
+      comments: [],
+      creator: "alice",
+      translations: {}
+    }
+  ];
+
+  let posts = loadPosts();
+  let activePost = null;
+  let quickActivePost = null;
+  let broadcastChannel = null;
+  let currentFontSize =
+    Number(localStorage.getItem(FONT_KEY)) || 15;
+  let toastTimer = null;
+
+  const $ = (selector, root = document) =>
+    root.querySelector(selector);
+
+  const $$ = (selector, root = document) =>
+    [...root.querySelectorAll(selector)];
+
+  const els = {
+    authWrapper: $("#authWrapper"),
+    authForm: $("#authForm"),
+    authName: $("#authName"),
+    authAge: $("#authAge"),
+    authError: $("#authError"),
+    captchaText: $("#captchaText"),
+    captchaInput: $("#captchaInput"),
+    refreshCaptcha: $("#refreshCaptcha"),
+
+    phoneScreen: $("#phoneScreen"),
+    homeBtn: $("#homeBtn"),
+    search: $("#search"),
+    profileBtn: $("#profileBtn"),
+    grid: $("#grid"),
+    emptyState: $("#emptyState"),
+    postCount: $("#postCount"),
+
+    contrastToggle: $("#contrastToggle"),
+    incText: $("#incText"),
+    decText: $("#decText"),
+
+    openNewPost: $("#openNewPost"),
+    fabNewPost: $("#fabNewPost"),
+    newPostModal: $("#newPostModal"),
+    newTitle: $("#newTitle"),
+    newDesc: $("#newDesc"),
+    newImgUrl: $("#newImgUrl"),
+    newImgFile: $("#newImgFile"),
+    createPost: $("#createPost"),
+    cancelCreate: $("#cancelCreate"),
+
+    commentModal: $("#commentModal"),
+    commentsList: $("#commentsList"),
+    commentInput: $("#commentInput"),
+    postComment: $("#postComment"),
+    closeModal: $("#closeModal"),
+
+    postDetail: $("#postDetail"),
+    detailClose: $("#detailClose"),
+    detailMedia: $("#detailMedia"),
+    detailTitle: $("#detailTitle"),
+    detailDescription: $("#detailDescription"),
+    detailCommentsList: $("#detailCommentsList"),
+    detailCommentInput: $("#detailCommentInput"),
+    detailPostComment: $("#detailPostComment"),
+    detailAudio: $("#detailAudio"),
+    detailLangSelect: $("#detailLangSelect"),
+    detailTranslate: $("#detailTranslate"),
+    detailShare: $("#detailShare"),
+    detailDelete: $("#detailDelete"),
+    detailShowOriginal: $("#detailShowOriginal"),
+    detailShownLang: $("#detailShownLang"),
+
+    profileModal: $("#profileModal"),
+    profileAvatar: $("#profileAvatar"),
+    profileName: $("#profileName"),
+    profileAge: $("#profileAge"),
+    profilePostCount: $("#profilePostCount"),
+    profileCommentCount: $("#profileCommentCount"),
+    closeProfile: $("#closeProfile"),
+
+    toast: $("#toast")
+  };
+
+  /* -----------------------------
+     Storage
+  ----------------------------- */
+
+  function loadPosts() {
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem(STORAGE_KEY)
+      );
+
+      if (Array.isArray(stored)) {
+        return normalizePosts(stored);
+      }
+    } catch (error) {
+      console.warn("Could not load posts:", error);
+    }
+
+    return DEFAULT_POSTS.map(normalizePost);
+  }
+
+  function normalizePosts(list) {
+    return list.map(normalizePost);
+  }
+
+  function normalizePost(post) {
+    return {
+      id: post.id || `post_${randomId()}`,
+      title: String(post.title || "Untitled post"),
+      description: String(post.description || ""),
+      img: String(post.img || ""),
+      lang: post.lang || "en",
+      comments: Array.isArray(post.comments)
+        ? post.comments
+        : [],
+      creator: post.creator || "unknown",
+      translations:
+        post.translations &&
+        typeof post.translations === "object"
+          ? post.translations
+          : {},
+      displayLang: post.displayLang || ""
+    };
+  }
+
+  function savePosts() {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(posts)
+      );
+    } catch (error) {
+      console.warn("Could not save posts:", error);
+      showToast(
+        "Storage is full. Try using a smaller image."
+      );
+    }
+  }
+
+  function randomId() {
+    if (window.crypto?.randomUUID) {
+      return crypto.randomUUID().slice(0, 12);
+    }
+
+    return Math.random()
+      .toString(36)
+      .slice(2, 12);
+  }
+
+  function escapeSelector(value) {
+    return window.CSS?.escape
+      ? CSS.escape(value)
+      : String(value).replace(
+          /["\\]/g,
+          "\\$&"
+        );
+  }
+
+  /* -----------------------------
+     UI helpers
+  ----------------------------- */
+
+  function showToast(message, duration = 2400) {
+    clearTimeout(toastTimer);
+
+    els.toast.textContent = message;
+    els.toast.classList.add("show");
+
+    toastTimer = setTimeout(() => {
+      els.toast.classList.remove("show");
+    }, duration);
+  }
+
+  function generatePlaceholder(title = "") {
+    const safeTitle = title
+      .slice(0, 35)
+      .replace(
+        /[&<>"]/g,
+        char =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;"
+          })[char]
+      );
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg"
+           width="900"
+           height="540"
+           viewBox="0 0 900 540">
+
+        <defs>
+          <linearGradient
+            id="g"
+            x1="0"
+            x2="1"
+            y1="0"
+            y2="1">
+
+            <stop
+              offset="0"
+              stop-color="#dbeafe"/>
+
+            <stop
+              offset="1"
+              stop-color="#eff6ff"/>
+          </linearGradient>
+        </defs>
+
+        <rect
+          width="900"
+          height="540"
+          fill="url(#g)"/>
+
+        <circle
+          cx="760"
+          cy="90"
+          r="150"
+          fill="#ffffff"
+          opacity=".45"/>
+
+        <circle
+          cx="120"
+          cy="500"
+          r="190"
+          fill="#93c5fd"
+          opacity=".18"/>
+
+        <text
+          x="450"
+          y="285"
+          text-anchor="middle"
+          font-family="Arial, sans-serif"
+          font-size="34"
+          font-weight="700"
+          fill="#2563eb">
+          ${safeTitle || "GridCards"}
+        </text>
+      </svg>
+    `;
+
+    return (
+      "data:image/svg+xml;charset=utf-8," +
+      encodeURIComponent(svg)
+    );
+  }
+
+  function isVideoUrl(url) {
+    return /\.(mp4|webm|ogg)(\?.*)?$/i.test(
+      url || ""
+    );
+  }
+
+  function getDisplayContent(post) {
+    const lang = post.displayLang;
+
+    if (
+      lang &&
+      post.translations?.[lang]
+    ) {
+      return {
+        title:
+          post.translations[lang].title ||
+          post.title,
+
+        description:
+          post.translations[lang].description ||
+          post.description
+      };
+    }
+
+    return {
+      title: post.title,
+      description: post.description
+    };
+  }
+
+  /* -----------------------------
+     Posts
+  ----------------------------- */
+
+  function renderPosts(filter = "") {
+    const query = filter.trim().toLowerCase();
+
+    const visiblePosts = posts.filter(post => {
+      const content =
+        `${post.title} ${post.description}`.toLowerCase();
+
+      return content.includes(query);
+    });
+
+    els.grid.replaceChildren();
+
+    visiblePosts.forEach((post, index) => {
+      const card = createCardElement(post);
+
+      card.style.setProperty(
+        "--delay",
+        `${Math.min(index * 35, 300)}ms`
+      );
+
+      els.grid.appendChild(card);
+
+      requestAnimationFrame(() => {
+        card.classList.add("visible");
+      });
+    });
+
+    els.emptyState.hidden =
+      visiblePosts.length !== 0;
+
+    els.postCount.textContent =
+      `${visiblePosts.length} ${
+        visiblePosts.length === 1
+          ? "post"
+          : "posts"
+      }`;
+  }
+
+  function createCardElement(post) {
+    const fragment =
+      $("#card-template")
+        .content
+        .cloneNode(true);
+
+    const card = $(".card", fragment);
+    const image = $("img", card);
+    const title = $(".title", card);
+    const description =
+      $(".description", card);
+
+    const {
+      title: displayTitle,
+      description: displayDescription
+    } = getDisplayContent(post);
+
+    card.dataset.id = post.id;
+
+    image.src =
+      post.img.trim() ||
+      generatePlaceholder(post.title);
+
+    image.alt =
+      `Media for ${displayTitle}`;
+
+    image.onerror = () => {
+      image.onerror = null;
+      image.src =
+        generatePlaceholder(post.title);
+    };
+
+    title.textContent = displayTitle;
+    description.textContent =
+      displayDescription;
+
+    $(".audio", card).addEventListener(
+      "click",
+      event => {
+        event.stopPropagation();
+        playTTS(post);
+      }
+    );
+
+    $(".comment", card).addEventListener(
+      "click",
+      event => {
+        event.stopPropagation();
+        openCommentsQuick(post);
+      }
+    );
+
+    $(".share", card).addEventListener(
+      "click",
+      event => {
+        event.stopPropagation();
+        sharePost(post);
+      }
+    );
+
+    const deleteButton =
+      $(".delete", card);
+
+    if (post.creator === CURRENT_USER) {
+      deleteButton.hidden = false;
+
+      deleteButton.addEventListener(
+        "click",
+        event => {
+          event.stopPropagation();
+          confirmDelete(post);
+        }
+      );
+    }
+
+    card.addEventListener(
+      "click",
+      () => openPostDetail(post)
+    );
+
+    card.addEventListener(
+      "keydown",
+      event => {
+        if (
+          event.key === "Enter" ||
+          event.key === " "
+        ) {
+          event.preventDefault();
+          openPostDetail(post);
+        }
+      }
+    );
+
+    return card;
+  }
+
+  /* -----------------------------
+     Audio
+  ----------------------------- */
+
+  function playTTS(post) {
+    if (!("speechSynthesis" in window)) {
+      showToast(
+        "Text-to-speech is not supported in this browser."
+      );
+      return;
+    }
+
+    const content =
+      getDisplayContent(post);
+
+    const utterance =
+      new SpeechSynthesisUtterance(
+        `${content.title}. ${content.description}`
+      );
+
+    utterance.lang =
+      post.displayLang ||
+      post.lang ||
+      "en";
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
+
+    showToast("Playing audio");
+  }
+
+  /* -----------------------------
+     Comments
+  ----------------------------- */
+
+  function openCommentsQuick(post) {
+    quickActivePost = post;
+
+    renderCommentsList(
+      els.commentsList,
+      post
+    );
+
+    openModal(els.commentModal);
+
+    els.commentInput.value = "";
+
+    setTimeout(() => {
+      els.commentInput.focus();
+    }, 50);
+  }
+
+  function renderCommentsList(
+    container,
+    post
+  ) {
+    container.replaceChildren();
+
+    const comments =
+      post.comments || [];
+
+    if (!comments.length) {
+      const empty =
+        document.createElement("p");
+
+      empty.className =
+        "comments-empty";
+
+      empty.textContent =
+        "No comments yet. Be the first to comment.";
+
+      container.appendChild(empty);
+      return;
+    }
+
+    comments.forEach(comment => {
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "comment-item";
+
+      const text =
+        document.createElement("p");
+
+      const lang =
+        post.displayLang;
+
+      text.textContent =
+        lang &&
+        comment.translations?.[lang]
+          ? comment.translations[lang]
+          : comment.text;
+
+      const time =
+        document.createElement("time");
+
+      time.textContent =
+        comment.at
+          ? new Date(
+              comment.at
+            ).toLocaleString()
+          : "";
+
+      item.append(
+        text,
+        time
+      );
+
+      container.appendChild(item);
+    });
+  }
+
+  function addComment(
+    post,
+    rawText
+  ) {
+    const text =
+      rawText.trim();
+
+    if (!post || !text) {
+      return false;
+    }
+
+    post.comments =
+      Array.isArray(post.comments)
+        ? post.comments
+        : [];
+
+    post.comments.push({
+      id: `comment_${randomId()}`,
+      text,
+      at: Date.now(),
+      translations: {}
+    });
+
+    savePosts();
+
+    broadcast({
+      type: "comment",
+      postId: post.id,
+      comment: post.comments.at(-1)
+    });
+
+    return true;
+  }
+
+  /* -----------------------------
+     Post detail
+  ----------------------------- */
+
+  function openPostDetail(post) {
+    activePost = post;
+
+    renderDetailMedia(post);
+    renderDetailContent();
+
+    els.detailDelete.hidden =
+      post.creator !== CURRENT_USER;
+
+    els.detailCommentInput.value = "";
+
+    openModal(
+      els.postDetail,
+      true
+    );
+
+    els.detailClose.focus();
+  }
+
+  function renderDetailMedia(post) {
+    els.detailMedia.replaceChildren();
+
+    if (isVideoUrl(post.img)) {
+      const video =
+        document.createElement("video");
+
+      video.src = post.img;
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+
+      video.setAttribute(
+        "aria-label",
+        `Video for ${post.title}`
+      );
+
+      els.detailMedia.appendChild(video);
+      return;
+    }
+
+    const image =
+      document.createElement("img");
+
+    image.src =
+      post.img.trim() ||
+      generatePlaceholder(post.title);
+
+    image.alt =
+      `Media for ${post.title}`;
+
+    image.onerror = () => {
+      image.onerror = null;
+      image.src =
+        generatePlaceholder(post.title);
+    };
+
+    els.detailMedia.appendChild(image);
+  }
+
+  function renderDetailContent() {
+    if (!activePost) return;
+
+    const content =
+      getDisplayContent(activePost);
+
+    els.detailTitle.textContent =
+      content.title;
+
+    els.detailDescription.textContent =
+      content.description;
+
+    els.detailShownLang.textContent =
+      activePost.displayLang ||
+      "original";
+
+    renderCommentsList(
+      els.detailCommentsList,
+      activePost
+    );
+  }
+
+  function closePostDetail() {
+    closeModal(
+      els.postDetail,
+      true
+    );
+
+    activePost = null;
+    els.detailLangSelect.value = "";
+  }
+
+  /* -----------------------------
+     Delete
+  ----------------------------- */
+
+  function confirmDelete(post) {
+    if (
+      post.creator !== CURRENT_USER
+    ) {
+      showToast(
+        "You can only delete your own posts."
+      );
+      return;
+    }
+
+    if (
+      window.confirm(
+        "Delete this post permanently?"
+      )
+    ) {
+      deletePost(post.id);
+    }
+  }
+
+  function deletePost(id) {
+    const card =
+      els.grid.querySelector(
+        `.card[data-id="${escapeSelector(id)}"]`
+      );
+
+    const finish = () => {
+      const index =
+        posts.findIndex(
+          post => post.id === id
+        );
+
+      if (index === -1) return;
+
+      posts.splice(index, 1);
+
+      savePosts();
+
+      broadcast({
+        type: "delete-post",
+        postId: id,
+        by: CURRENT_USER
+      });
+
+      if (
+        activePost?.id === id
+      ) {
+        closePostDetail();
+      }
+
+      renderPosts(
+        els.search.value
+      );
+
+      showToast("Post deleted");
+    };
+
+    if (!card) {
+      finish();
+      return;
+    }
+
+    card.classList.add(
+      "removing"
+    );
+
+    setTimeout(
+      finish,
+      220
+    );
+  }
+
+  /* -----------------------------
+     Sharing
+  ----------------------------- */
+
+  async function sharePost(post) {
+    const shareData = {
+      title: post.title,
+      text: post.description,
+      url:
+        `${location.href.split("#")[0]}` +
+        `#post-${encodeURIComponent(post.id)}`
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(
+          shareData
+        );
+      } else if (
+        navigator.clipboard?.writeText
+      ) {
+        await navigator.clipboard.writeText(
+          `${post.title}\n` +
+          `${post.description}\n` +
+          `${shareData.url}`
+        );
+
+        showToast(
+          "Post link copied"
+        );
+
+        return;
+      } else {
+        showToast(
+          "Sharing is not supported here."
+        );
+
+        return;
+      }
+
+      showToast("Shared");
+    } catch (error) {
+      if (
+        error?.name !==
+        "AbortError"
+      ) {
+        showToast(
+          "Unable to share."
+        );
+      }
+    }
+  }
+
+  /* -----------------------------
+     Translation
+  ----------------------------- */
+
+  async function translateText(
+    text,
+    target
+  ) {
+    if (!text.trim()) return "";
+
+    const url =
+      `https://translate.googleapis.com/translate_a/single` +
+      `?client=gtx` +
+      `&sl=auto` +
+      `&tl=${encodeURIComponent(target)}` +
+      `&dt=t` +
+      `&q=${encodeURIComponent(text)}`;
+
+    const response =
+      await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        "Translation request failed."
+      );
+    }
+
+    const data =
+      await response.json();
+
+    if (!Array.isArray(data?.[0])) {
+      throw new Error(
+        "Unexpected translation response."
+      );
+    }
+
+    return data[0]
+      .map(
+        part => part?.[0] || ""
+      )
+      .join("");
+  }
+
+  async function translatePostAndComments(
+    post,
+    language
+  ) {
+    if (!post || !language) return;
+
+    showToast(
+      "Translating…"
+    );
+
+    try {
+      const [
+        title,
+        description
+      ] = await Promise.all([
+        translateText(
+          post.title,
+          language
+        ),
+        translateText(
+          post.description,
+          language
+        )
+      ]);
+
+      const translatedComments =
+        await Promise.all(
+          (post.comments || [])
+            .map(
+              async comment => ({
+                id: comment.id,
+                translatedText:
+                  await translateText(
+                    comment.text,
+                    language
+                  )
+              })
+            )
+        );
+
+      post.translations ||= {};
+
+      post.translations[
+        language
+      ] = {
+        title,
+        description,
+        comments:
+          Object.fromEntries(
+            translatedComments.map(
+              item => [
+                item.id,
+                item.translatedText
+              ]
+            )
+          )
+      };
+
+      (
+        post.comments || []
+      ).forEach(comment => {
+        const translated =
+          translatedComments.find(
+            item =>
+              item.id ===
+              comment.id
+          );
+
+        if (translated) {
+          comment.translations ||= {};
+
+          comment.translations[
+            language
+          ] =
+            translated.translatedText;
+        }
+      });
+
+      post.displayLang =
+        language;
+
+      savePosts();
+
+      broadcast({
+        type: "translate",
+        postId: post.id,
+        lang: language,
+        title,
+        description,
+        comments:
+          translatedComments
+      });
+
+      renderDetailContent();
+      renderPosts(
+        els.search.value
+      );
+
+      showToast(
+        "Translation complete"
+      );
+    } catch (error) {
+      console.error(error);
+
+      showToast(
+        "Translation failed. Check your connection."
+      );
+    }
+  }
+
+  function populateLanguages() {
+    els.detailLangSelect.replaceChildren();
+
+    const first =
+      document.createElement(
+        "option"
+      );
+
+    first.value = "";
+    first.textContent =
+      "Language";
+
+    els.detailLangSelect.appendChild(
+      first
+    );
+
+    LANGUAGES.forEach(
+      ([code, name]) => {
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value = code;
+        option.textContent =
+          name;
+
+        els.detailLangSelect.appendChild(
+          option
+        );
+      }
+    );
+  }
+
+  /* -----------------------------
+     Modals
+  ----------------------------- */
+
+  function openModal(
+    modal,
+    isDetail = false
+  ) {
+    modal.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+    if (!isDetail) {
+      modal.dataset.previousFocus =
+        document.activeElement?.id ||
+        "";
+    }
+  }
+
+  function closeModal(
+    modal,
+    isDetail = false
+  ) {
+    modal.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+    if (!isDetail) {
+      const previousId =
+        modal.dataset.previousFocus;
+
+      if (previousId) {
+        document
+          .getElementById(
+            previousId
+          )
+          ?.focus();
+      }
+    }
+  }
+
+  /* -----------------------------
+     New post
+  ----------------------------- */
+
+  function openNewPostModal() {
+    els.newTitle.value = "";
+    els.newDesc.value = "";
+    els.newImgUrl.value = "";
+    els.newImgFile.value = "";
+
+    openModal(
+      els.newPostModal
+    );
+
+    setTimeout(() => {
+      els.newTitle.focus();
+    }, 50);
+  }
+
+  function createPost() {
+    const title =
+      els.newTitle.value.trim();
+
+    const description =
+      els.newDesc.value.trim();
+
+    const imageUrl =
+      els.newImgUrl.value.trim();
+
+    const file =
+      els.newImgFile.files?.[0];
+
+    if (!title || !description) {
+      showToast(
+        "Add a title and description first."
+      );
+      return;
+    }
+
+    if (
+      imageUrl &&
+      !/^https?:\/\//i.test(
+        imageUrl
+      )
+    ) {
+      showToast(
+        "Please enter a valid image URL."
+      );
+      return;
+    }
+
+    const finish = image => {
+      const post = {
+        id: `post_${randomId()}`,
+        title,
+        description,
+        img: image || "",
+        lang: "en",
+        comments: [],
+        creator: CURRENT_USER,
+        translations: {}
+      };
+
+      posts.unshift(post);
+
+      savePosts();
+
+      broadcast({
+        type: "new-post",
+        post
+      });
+
+      closeModal(
+        els.newPostModal
+      );
+
+      renderPosts(
+        els.search.value
+      );
+
+      showToast(
+        "Post published"
+      );
+
+      els.phoneScreen.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      updateProfile();
+    };
+
+    if (!file) {
+      finish(imageUrl);
+      return;
+    }
+
+    if (
+      file.size >
+      2_500_000
+    ) {
+      showToast(
+        "Please use an image smaller than 2.5 MB."
+      );
+      return;
+    }
+
+    const reader =
+      new FileReader();
+
+    reader.onload = () =>
+      finish(
+        String(reader.result)
+      );
+
+    reader.onerror = () =>
+      showToast(
+        "Could not read that image."
+      );
+
+    reader.readAsDataURL(file);
+  }
+
+  /* -----------------------------
+     Accessibility
+  ----------------------------- */
+
+  function setFontSize(
+    size,
+    broadcastChange = true
+  ) {
+    currentFontSize =
+      Math.max(
+        13,
+        Math.min(
+          20,
+          Number(size) || 15
+        )
+      );
+
+    document.documentElement.style.setProperty(
+      "--font-size",
+      `${currentFontSize}px`
+    );
+
+    localStorage.setItem(
+      FONT_KEY,
+      String(currentFontSize)
+    );
+
+    if (broadcastChange) {
+      broadcast({
+        type: "ui",
+        key: "fontSize",
+        value: currentFontSize
+      });
+    }
+  }
+
+  function setContrast(
+    enabled,
+    broadcastChange = true
+  ) {
+    document.documentElement.classList.toggle(
+      "high-contrast",
+      enabled
+    );
+
+    els.contrastToggle.checked =
+      enabled;
+
+    localStorage.setItem(
+      CONTRAST_KEY,
+      String(enabled)
+    );
+
+    if (broadcastChange) {
+      broadcast({
+        type: "ui",
+        key: "contrast",
+        value: enabled
+      });
+    }
+  }
+
+  /* -----------------------------
+     Multi-tab sync
+  ----------------------------- */
+
+  function setupBroadcast() {
+    if (
+      !("BroadcastChannel" in window)
+    ) {
+      return;
+    }
+
+    broadcastChannel =
+      new BroadcastChannel(
+        "gridcards-sync"
+      );
+
+    broadcastChannel.addEventListener(
+      "message",
+      event =>
+        handleRemote(
+          event.data
+        )
+    );
+  }
+
+  function broadcast(message) {
+    broadcastChannel?.postMessage(
+      message
+    );
+  }
+
+  function handleRemote(message) {
+    if (!message?.type) return;
+
+    if (
+      message.type ===
+      "comment"
+    ) {
+      const post =
+        posts.find(
+          item =>
+            item.id ===
+            message.postId
+        );
+
+      if (
+        !post ||
+        post.comments.some(
+          comment =>
+            comment.id ===
+            message.comment.id
+        )
+      ) {
+        return;
+      }
+
+      post.comments.push(
+        message.comment
+      );
+
+      savePosts();
+
+      if (
+        activePost?.id ===
+        post.id
+      ) {
+        renderDetailContent();
+      }
+
+      renderPosts(
+        els.search.value
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "new-post"
+    ) {
+      if (
+        !message.post ||
+        posts.some(
+          post =>
+            post.id ===
+            message.post.id
+        )
+      ) {
+        return;
+      }
+
+      posts.unshift(
+        normalizePost(
+          message.post
+        )
+      );
+
+      savePosts();
+      renderPosts(
+        els.search.value
+      );
+
+      showToast(
+        "New post received"
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "delete-post"
+    ) {
+      const index =
+        posts.findIndex(
+          post =>
+            post.id ===
+            message.postId
+        );
+
+      if (index === -1) {
+        return;
+      }
+
+      posts.splice(
+        index,
+        1
+      );
+
+      savePosts();
+
+      if (
+        activePost?.id ===
+        message.postId
+      ) {
+        closePostDetail();
+      }
+
+      renderPosts(
+        els.search.value
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "translate"
+    ) {
+      const post =
+        posts.find(
+          item =>
+            item.id ===
+            message.postId
+        );
+
+      if (!post) return;
+
+      post.translations ||= {};
+
+      post.translations[
+        message.lang
+      ] = {
+        title:
+          message.title,
+        description:
+          message.description,
+        comments:
+          Object.fromEntries(
+            (
+              message.comments ||
+              []
+            ).map(
+              item => [
+                item.id,
+                item.translatedText
+              ]
+            )
+          )
+      };
+
+      (
+        message.comments ||
+        []
+      ).forEach(item => {
+        const comment =
+          post.comments.find(
+            commentItem =>
+              commentItem.id ===
+              item.id
+          );
+
+        if (comment) {
+          comment.translations ||= {};
+
+          comment.translations[
+            message.lang
+          ] =
+            item.translatedText;
+        }
+      });
+
+      post.displayLang =
+        message.lang;
+
+      savePosts();
+
+      if (
+        activePost?.id ===
+        post.id
+      ) {
+        renderDetailContent();
+      }
+
+      renderPosts(
+        els.search.value
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "ui"
+    ) {
+      if (
+        message.key ===
+        "fontSize"
+      ) {
+        setFontSize(
+          message.value,
+          false
+        );
+      }
+
+      if (
+        message.key ===
+        "contrast"
+      ) {
+        setContrast(
+          Boolean(
+            message.value
+          ),
+          false
+        );
+      }
+    }
+  }
+
+  /* -----------------------------
+     CAPTCHA
+  ----------------------------- */
+
+  function generateCaptcha() {
+    const chars =
+      "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+    let value = "";
+
+    for (
+      let i = 0;
+      i < 5;
+      i++
+    ) {
+      value +=
+        chars[
+          Math.floor(
+            Math.random() *
+              chars.length
+          )
+        ];
+    }
+
+    els.captchaText.textContent =
+      value;
+  }
+
+  function setAuthError(
+    message = ""
+  ) {
+    els.authError.textContent =
+      message;
+  }
+
+  function setupAuth() {
+    let savedUser = null;
+
+    try {
+      savedUser = JSON.parse(
+        localStorage.getItem(
+          USER_KEY
+        ) || "null"
+      );
+    } catch {
+      savedUser = null;
+    }
+
+    if (
+      savedUser?.name &&
+      Number(savedUser.age) >= 13
+    ) {
+      hideAuth();
+      return;
+    }
+
+    generateCaptcha();
+
+    els.refreshCaptcha.addEventListener(
+      "click",
+      () => {
+        generateCaptcha();
+
+        els.captchaInput.value =
+          "";
+
+        els.captchaInput.focus();
+      }
+    );
+
+    els.authForm.addEventListener(
+      "submit",
+      event => {
+        event.preventDefault();
+
+        const name =
+          els.authName.value.trim();
+
+        const age =
+          Number(
+            els.authAge.value
+          );
+
+        const captcha =
+          els.captchaInput.value
+            .trim()
+            .toUpperCase();
+
+        if (
+          !name ||
+          !Number.isInteger(age) ||
+          age < 13 ||
+          age > 120
+        ) {
+          setAuthError(
+            "Enter a valid name and age."
+          );
+
+          return;
+        }
+
+        if (
+          captcha !==
+          els.captchaText.textContent
+        ) {
+          setAuthError(
+            "Captcha is incorrect. Try again."
+          );
+
+          generateCaptcha();
+
+          els.captchaInput.value =
+            "";
+
+          return;
+        }
+
+        localStorage.setItem(
+          USER_KEY,
+          JSON.stringify({
+            name,
+            age
+          })
+        );
+
+        setAuthError("");
+        hideAuth();
+      }
+    );
+  }
+
+  function hideAuth() {
+    els.authWrapper.classList.add(
+      "hidden"
+    );
+
+    updateProfile();
+  }
+
+  /* -----------------------------
+     Profile
+  ----------------------------- */
+
+  function updateProfile() {
+    let user = null;
+
+    try {
+      user = JSON.parse(
+        localStorage.getItem(
+          USER_KEY
+        ) || "null"
+      );
+    } catch {
+      user = null;
+    }
+
+    const name =
+      user?.name ||
+      "GridCards User";
+
+    const age =
+      user?.age
+        ? `Age ${user.age}`
+        : "";
+
+    els.profileName.textContent =
+      name;
+
+    els.profileAge.textContent =
+      age;
+
+    els.profileAvatar.textContent =
+      name
+        .charAt(0)
+        .toUpperCase();
+
+    els.profilePostCount.textContent =
+      posts.filter(
+        post =>
+          post.creator ===
+          CURRENT_USER
+      ).length;
+
+    els.profileCommentCount.textContent =
+      posts.reduce(
+        (total, post) =>
+          total +
+          (post.comments?.length ||
+            0),
+        0
+      );
+  }
+
+  function openProfile() {
+    updateProfile();
+
+    openModal(
+      els.profileModal
+    );
+  }
+
+  /* -----------------------------
+     Global events
+  ----------------------------- */
+
+  function closeAllOverlays() {
+    closeModal(
+      els.commentModal
+    );
+
+    closeModal(
+      els.newPostModal
+    );
+
+    closeModal(
+      els.profileModal
+    );
+
+    if (
+      els.postDetail.getAttribute(
+        "aria-hidden"
+      ) === "false"
+    ) {
+      closePostDetail();
+    }
+  }
+
+  function setupEvents() {
+    els.search.addEventListener(
+      "input",
+      event =>
+        renderPosts(
+          event.target.value
+        )
+    );
+
+    els.homeBtn.addEventListener(
+      "click",
+      () => {
+        els.search.value = "";
+
+        renderPosts();
+
+        els.phoneScreen.scrollTo({
+          top: 0,
+          behavior: "smooth"
+        });
+      }
+    );
+
+    els.openNewPost.addEventListener(
+      "click",
+      openNewPostModal
+    );
+
+    els.fabNewPost.addEventListener(
+      "click",
+      openNewPostModal
+    );
+
+    els.createPost.addEventListener(
+      "click",
+      createPost
+    );
+
+    els.cancelCreate.addEventListener(
+      "click",
+      () =>
+        closeModal(
+          els.newPostModal
+        )
+    );
+
+    els.profileBtn.addEventListener(
+      "click",
+      openProfile
+    );
+
+    els.closeProfile.addEventListener(
+      "click",
+      () =>
+        closeModal(
+          els.profileModal
+        )
+    );
+
+    els.closeModal.addEventListener(
+      "click",
+      () =>
+        closeModal(
+          els.commentModal
+        )
+    );
+
+    els.postComment.addEventListener(
+      "click",
+      () => {
+        if (
+          addComment(
+            quickActivePost,
+            els.commentInput.value
+          )
+        ) {
+          renderCommentsList(
+            els.commentsList,
+            quickActivePost
+          );
+
+          els.commentInput.value =
+            "";
+
+          showToast(
+            "Comment posted"
+          );
+
+          updateProfile();
+        }
+      }
+    );
+
+    els.detailClose.addEventListener(
+      "click",
+      closePostDetail
+    );
+
+    els.detailAudio.addEventListener(
+      "click",
+      () => {
+        if (activePost) {
+          playTTS(activePost);
+        }
+      }
+    );
+
+    els.detailShare.addEventListener(
+      "click",
+      () => {
+        if (activePost) {
+          sharePost(activePost);
+        }
+      }
+    );
+
+    els.detailTranslate.addEventListener(
+      "click",
+      () => {
+        const language =
+          els.detailLangSelect.value;
+
+        if (!activePost) return;
+
+        if (!language) {
+          showToast(
+            "Choose a language first."
+          );
+
+          return;
+        }
+
+        translatePostAndComments(
+          activePost,
+          language
+        );
+      }
+    );
+
+    els.detailShowOriginal.addEventListener(
+      "click",
+      () => {
+        if (!activePost) return;
+
+        activePost.displayLang =
+          "";
+
+        savePosts();
+
+        renderDetailContent();
+
+        renderPosts(
+          els.search.value
+        );
+
+        els.detailLangSelect.value =
+          "";
+      }
+    );
+
+    els.detailDelete.addEventListener(
+      "click",
+      () => {
+        if (activePost) {
+          confirmDelete(
+            activePost
+          );
+        }
+      }
+    );
+
+    els.detailPostComment.addEventListener(
+      "click",
+      () => {
+        if (
+          addComment(
+            activePost,
+            els.detailCommentInput
+              .value
+          )
+        ) {
+          els.detailCommentInput.value =
+            "";
+
+          renderDetailContent();
+
+          showToast(
+            "Comment posted"
+          );
+
+          updateProfile();
+        }
+      }
+    );
+
+    els.contrastToggle.addEventListener(
+      "change",
+      event =>
+        setContrast(
+          event.target.checked
+        )
+    );
+
+    els.incText.addEventListener(
+      "click",
+      () =>
+        setFontSize(
+          currentFontSize + 1
+        )
+    );
+
+    els.decText.addEventListener(
+      "click",
+      () =>
+        setFontSize(
+          currentFontSize - 1
+        )
+    );
+
+    $$(".modal").forEach(
+      modal => {
+        modal.addEventListener(
+          "click",
+          event => {
+            if (
+              event.target ===
+              modal
+            ) {
+              closeModal(
+                modal
+              );
+            }
+          }
+        );
+      }
+    );
+
+    document.addEventListener(
+      "keydown",
+      event => {
+        if (
+          event.key !==
+          "Escape"
+        ) {
+          return;
+        }
+
+        closeAllOverlays();
+      }
+    );
+
+    window.addEventListener(
+      "storage",
+      event => {
+        if (
+          event.key !==
+            STORAGE_KEY ||
+          !event.newValue
+        ) {
+          return;
+        }
+
+        try {
+          const incoming =
+            JSON.parse(
+              event.newValue
+            );
+
+          if (
+            Array.isArray(
+              incoming
+            )
+          ) {
+            posts =
+              normalizePosts(
+                incoming
+              );
+
+            renderPosts(
+              els.search.value
+            );
+
+            updateProfile();
+          }
+        } catch (error) {
+          console.warn(
+            "Storage update failed:",
+            error
+          );
+        }
+      }
+    );
+  }
+
+  /* -----------------------------
+     Hash routes
+  ----------------------------- */
+
+  function handleHashRoute() {
+    const match =
+      location.hash.match(
+        /^#post-(.+)$/
+      );
+
+    if (!match) return;
+
+    const postId =
+      decodeURIComponent(
+        match[1]
+      );
+
+    const post =
+      posts.find(
+        item =>
+          item.id === postId
+      );
+
+    if (post) {
+      openPostDetail(post);
+    }
+  }
+
+  /* -----------------------------
+     Init
+  ----------------------------- */
+
+  function init() {
+    populateLanguages();
+
+    setupBroadcast();
+
+    setupEvents();
+
+    setupAuth();
+
+    setFontSize(
+      currentFontSize,
+      false
+    );
+
+    setContrast(
+      localStorage.getItem(
+        CONTRAST_KEY
+      ) === "true",
+      false
+    );
+
+    renderPosts();
+
+    updateProfile();
+
+    handleHashRoute();
+  }
+
+  init();
+})();
