@@ -1,116 +1,14 @@
 "use strict";
 
 /* =========================================================
-   GRIDCARDS
+   GRIDCARDS - SCRIPT.JS
 ========================================================= */
 
-
-/* =========================================================
-   SETTINGS
-========================================================= */
-
-const STORAGE_KEY =
-  "gridcards_posts_v10";
-
-const USER_KEY =
-  "gridcards_user_v10";
-
-const FONT_KEY =
-  "gridcards_font_v10";
-
-const CONTRAST_KEY =
-  "gridcards_contrast_v10";
-
-const CURRENT_USER =
-  "gridcards-user";
-
-
-/* =========================================================
-   DEFAULT POSTS
-========================================================= */
-
-const DEFAULT_POSTS = [
-
-  {
-    id: "post-1",
-
-    title:
-      "Community meeting — 10AM",
-
-    description:
-      "Join the project owners for the monthly update and Q&A.",
-
-    img: "",
-
-    creator:
-      "system",
-
-    comments: [],
-
-    translations: {}
-  },
-
-
-  {
-    id: "post-2",
-
-    title:
-      "Maintenance window",
-
-    description:
-      "Services will be degraded for one hour during maintenance.",
-
-    img: "",
-
-    creator:
-      "system",
-
-    comments: [],
-
-    translations: {}
-  },
-
-
-  {
-    id: "post-3",
-
-    title:
-      "New feature: Dark mode",
-
-    description:
-      "Try the experimental dark mode and give feedback.",
-
-    img: "",
-
-    creator:
-      "system",
-
-    comments: [],
-
-    translations: {}
-  },
-
-
-  {
-    id: "post-4",
-
-    title:
-      "Volunteer call",
-
-    description:
-      "We need volunteers for the outreach program next weekend.",
-
-    img: "",
-
-    creator:
-      "system",
-
-    comments: [],
-
-    translations: {}
-  }
-
-];
+const STORAGE_KEY = "gridcards_posts_v11";
+const USER_KEY = "gridcards_user_v11";
+const FONT_KEY = "gridcards_font_v11";
+const CONTRAST_KEY = "gridcards_contrast_v11";
+const CURRENT_USER = "gridcards-user";
 
 
 /* =========================================================
@@ -118,7 +16,6 @@ const DEFAULT_POSTS = [
 ========================================================= */
 
 const LANGUAGES = [
-
   ["hi", "Hindi"],
   ["en", "English"],
   ["es", "Spanish"],
@@ -140,7 +37,61 @@ const LANGUAGES = [
   ["vi", "Vietnamese"],
   ["id", "Indonesian"],
   ["sa", "Sanskrit"]
+];
 
+
+/* =========================================================
+   DEFAULT POSTS
+========================================================= */
+
+const DEFAULT_POSTS = [
+  {
+    id: "post-1",
+    title: "Community meeting — 10AM",
+    description:
+      "Join the project owners for the monthly update and Q&A.",
+    img: "",
+    creator: "system",
+    comments: [],
+    translations: {},
+    displayLanguage: ""
+  },
+
+  {
+    id: "post-2",
+    title: "Maintenance window",
+    description:
+      "Services will be degraded for one hour during maintenance.",
+    img: "",
+    creator: "system",
+    comments: [],
+    translations: {},
+    displayLanguage: ""
+  },
+
+  {
+    id: "post-3",
+    title: "New feature: Dark mode",
+    description:
+      "Try the experimental dark mode and give feedback.",
+    img: "",
+    creator: "system",
+    comments: [],
+    translations: {},
+    displayLanguage: ""
+  },
+
+  {
+    id: "post-4",
+    title: "Volunteer call",
+    description:
+      "We need volunteers for the outreach program next weekend.",
+    img: "",
+    creator: "system",
+    comments: [],
+    translations: {},
+    displayLanguage: ""
+  }
 ];
 
 
@@ -148,90 +99,81 @@ const LANGUAGES = [
    STATE
 ========================================================= */
 
-let posts =
-  loadPosts();
-
-let activePost =
-  null;
-
-let commentPost =
-  null;
-
-let captchaCode =
-  "";
+let posts = loadPosts();
+let activePost = null;
+let commentPost = null;
+let captchaCode = "";
+let toastTimer = null;
+let channel = null;
 
 let fontSize =
-  Number(
-    localStorage.getItem(
-      FONT_KEY
-    )
-  ) || 15;
+  Number(localStorage.getItem(FONT_KEY)) || 15;
 
-let toastTimer =
-  null;
 
-let channel =
-  null;
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const $ = id =>
+  document.getElementById(id);
+
+
+function createId() {
+  if (
+    window.crypto &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID().slice(0, 12);
+  }
+
+  return Math.random()
+    .toString(36)
+    .slice(2, 14);
+}
+
+
+function showToast(message) {
+  clearTimeout(toastTimer);
+
+  toast.textContent = message;
+
+  toast.classList.add("show");
+
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2400);
+}
+
+
+function languageName(code) {
+  return (
+    LANGUAGES.find(
+      item => item[0] === code
+    )?.[1] || code
+  );
+}
 
 
 /* =========================================================
    ELEMENTS
 ========================================================= */
 
-const $ =
-  id =>
-    document.getElementById(id);
+const authScreen = $("authScreen");
+const authForm = $("authForm");
+const authName = $("authName");
+const authAge = $("authAge");
+const captchaText = $("captchaText");
+const captchaInput = $("captchaInput");
+const refreshCaptcha = $("refreshCaptcha");
+const authError = $("authError");
 
+const app = $("app");
 
-/* Auth */
-
-const authScreen =
-  $("authScreen");
-
-const authForm =
-  $("authForm");
-
-const authName =
-  $("authName");
-
-const authAge =
-  $("authAge");
-
-const captchaText =
-  $("captchaText");
-
-const captchaInput =
-  $("captchaInput");
-
-const refreshCaptcha =
-  $("refreshCaptcha");
-
-const authError =
-  $("authError");
-
-
-/* App */
-
-const app =
-  $("app");
-
-const homeBtn =
-  $("homeBtn");
-
-const search =
-  $("search");
-
-const grid =
-  $("grid");
-
-const emptyState =
-  $("emptyState");
-
-const postCount =
-  $("postCount");
-
-
-/* Controls */
+const homeBtn = $("homeBtn");
+const search = $("search");
+const grid = $("grid");
+const emptyState = $("emptyState");
+const postCount = $("postCount");
 
 const contrastToggle =
   $("contrastToggle");
@@ -241,9 +183,6 @@ const incText =
 
 const decText =
   $("decText");
-
-
-/* New post */
 
 const openNewPost =
   $("openNewPost");
@@ -271,9 +210,6 @@ const createPostButton =
 
 const cancelCreate =
   $("cancelCreate");
-
-
-/* Detail */
 
 const postDetail =
   $("postDetail");
@@ -320,9 +256,6 @@ const detailCommentInput =
 const detailPostComment =
   $("detailPostComment");
 
-
-/* Comments */
-
 const commentModal =
   $("commentModal");
 
@@ -337,9 +270,6 @@ const postComment =
 
 const closeModalButton =
   $("closeModal");
-
-
-/* Profile */
 
 const profileBtn =
   $("profileBtn");
@@ -368,9 +298,6 @@ const closeProfile =
 const logoutButton =
   $("logoutButton");
 
-
-/* Toast */
-
 const toast =
   $("toast");
 
@@ -379,142 +306,117 @@ const toast =
    STORAGE
 ========================================================= */
 
+function cloneDefaultPosts() {
+  return DEFAULT_POSTS.map(post =>
+    JSON.parse(JSON.stringify(post))
+  );
+}
+
+
+function normalisePost(post) {
+  return {
+    id:
+      post?.id ||
+      `post-${createId()}`,
+
+    title:
+      String(
+        post?.title ||
+        "Untitled post"
+      ),
+
+    description:
+      String(
+        post?.description ||
+        ""
+      ),
+
+    img:
+      String(
+        post?.img ||
+        ""
+      ),
+
+    creator:
+      String(
+        post?.creator ||
+        "system"
+      ),
+
+    comments:
+      Array.isArray(
+        post?.comments
+      )
+        ? post.comments
+        : [],
+
+    translations:
+      post?.translations &&
+      typeof post.translations === "object"
+        ? post.translations
+        : {},
+
+    displayLanguage:
+      String(
+        post?.displayLanguage ||
+        ""
+      )
+  };
+}
+
+
 function loadPosts() {
-
   try {
-
-    const saved =
+    const raw =
       localStorage.getItem(
         STORAGE_KEY
       );
 
-    if (!saved) {
-
-      return DEFAULT_POSTS.map(
-        post => ({
-          ...post,
-          comments: [],
-          translations: {}
-        })
-      );
-
+    if (!raw) {
+      return cloneDefaultPosts();
     }
 
-    const parsed =
-      JSON.parse(saved);
+    const data =
+      JSON.parse(raw);
 
-    if (!Array.isArray(parsed)) {
-
-      return DEFAULT_POSTS;
-
+    if (
+      !Array.isArray(data) ||
+      data.length === 0
+    ) {
+      return cloneDefaultPosts();
     }
 
-    return parsed;
+    return data.map(
+      normalisePost
+    );
 
   } catch (error) {
-
     console.error(
       "Could not load posts:",
       error
     );
 
-    return DEFAULT_POSTS;
-
+    return cloneDefaultPosts();
   }
-
 }
 
 
 function savePosts() {
-
   try {
-
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify(posts)
     );
-
   } catch (error) {
-
     console.error(
       "Could not save posts:",
       error
     );
 
     showToast(
-      "Storage is full. Try a smaller image."
+      "Storage is full. Use a smaller image."
     );
-
   }
-
-}
-
-
-/* =========================================================
-   UTILITIES
-========================================================= */
-
-function createId() {
-
-  if (
-    window.crypto &&
-    crypto.randomUUID
-  ) {
-
-    return crypto
-      .randomUUID()
-      .slice(0, 12);
-
-  }
-
-  return Math.random()
-    .toString(36)
-    .substring(2, 14);
-
-}
-
-
-function showToast(
-  message
-) {
-
-  clearTimeout(
-    toastTimer
-  );
-
-  toast.textContent =
-    message;
-
-  toast.classList.add(
-    "show"
-  );
-
-  toastTimer =
-    setTimeout(() => {
-
-      toast.classList.remove(
-        "show"
-      );
-
-    }, 2400);
-
-}
-
-
-function escapeHtml(
-  value
-) {
-
-  const div =
-    document.createElement(
-      "div"
-    );
-
-  div.textContent =
-    value;
-
-  return div.innerHTML;
-
 }
 
 
@@ -523,20 +425,23 @@ function escapeHtml(
 ========================================================= */
 
 function placeholderImage(
-  title
+  title = ""
 ) {
-
   const safe =
-    escapeHtml(
-      title.substring(
-        0,
-        35
-      )
-    );
-
+    title
+      .slice(0, 35)
+      .replace(
+        /[&<>"]/g,
+        char =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;"
+          })[char]
+      );
 
   const svg = `
-
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="900"
@@ -545,7 +450,6 @@ function placeholderImage(
     >
 
       <defs>
-
         <linearGradient
           id="gradient"
           x1="0"
@@ -553,7 +457,6 @@ function placeholderImage(
           x2="1"
           y2="1"
         >
-
           <stop
             offset="0%"
             stop-color="#dbeafe"
@@ -563,11 +466,8 @@ function placeholderImage(
             offset="100%"
             stop-color="#eff6ff"
           />
-
         </linearGradient>
-
       </defs>
-
 
       <rect
         width="900"
@@ -575,47 +475,41 @@ function placeholderImage(
         fill="url(#gradient)"
       />
 
-
       <circle
-        cx="730"
-        cy="130"
+        cx="740"
+        cy="120"
         r="160"
         fill="#ffffff"
         opacity="0.55"
       />
 
-
       <circle
         cx="100"
-        cy="530"
+        cy="540"
         r="200"
         fill="#60a5fa"
         opacity="0.12"
       />
 
-
       <text
         x="450"
         y="315"
         text-anchor="middle"
-        font-family="Arial"
+        font-family="Arial, sans-serif"
         font-size="36"
         font-weight="700"
         fill="#2563eb"
       >
-        ${safe}
+        ${safe || "GridCards"}
       </text>
 
     </svg>
-
   `;
-
 
   return (
     "data:image/svg+xml;charset=utf-8," +
     encodeURIComponent(svg)
   );
-
 }
 
 
@@ -624,18 +518,12 @@ function placeholderImage(
 ========================================================= */
 
 function generateCaptcha() {
-
   const chars =
     "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   captchaCode = "";
 
-  for (
-    let i = 0;
-    i < 5;
-    i++
-  ) {
-
+  for (let i = 0; i < 5; i++) {
     captchaCode +=
       chars[
         Math.floor(
@@ -643,162 +531,162 @@ function generateCaptcha() {
           chars.length
         )
       ];
-
   }
 
   captchaText.textContent =
     captchaCode;
-
 }
 
 
-function isLoggedIn() {
-
-  return Boolean(
-    localStorage.getItem(
-      USER_KEY
-    )
-  );
-
+function getUser() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(
+        USER_KEY
+      ) || "null"
+    );
+  } catch {
+    return null;
+  }
 }
 
 
 function showApp() {
-
-  authScreen.classList.add(
-    "hidden"
-  );
-
-  app.classList.remove(
-    "hidden"
-  );
+  authScreen.hidden = true;
+  app.hidden = false;
 
   updateProfile();
 
+  setTimeout(() => {
+    search.focus();
+  }, 100);
 }
 
 
 function showLogin() {
-
-  app.classList.add(
-    "hidden"
-  );
-
-  authScreen.classList.remove(
-    "hidden"
-  );
+  app.hidden = true;
+  authScreen.hidden = false;
 
   generateCaptcha();
 
-  authName.focus();
-
+  setTimeout(() => {
+    authName.focus();
+  }, 50);
 }
 
 
-authForm.addEventListener(
-  "submit",
-  event => {
+function setupAuthentication() {
+  generateCaptcha();
 
-    event.preventDefault();
-
-
-    const name =
-      authName.value.trim();
-
-    const age =
-      Number(
-        authAge.value
-      );
-
-    const enteredCaptcha =
-      captchaInput.value
-        .trim()
-        .toUpperCase();
-
-
-    authError.textContent =
-      "";
-
-
-    if (!name) {
-
-      authError.textContent =
-        "Please enter your name.";
-
-      return;
-
-    }
-
-
-    if (
-      !age ||
-      age < 13 ||
-      age > 120
-    ) {
-
-      authError.textContent =
-        "Please enter a valid age.";
-
-      return;
-
-    }
-
-
-    if (
-      enteredCaptcha !==
-      captchaCode
-    ) {
-
-      authError.textContent =
-        "Incorrect captcha.";
-
-      captchaInput.value =
-        "";
-
+  refreshCaptcha.addEventListener(
+    "click",
+    () => {
       generateCaptcha();
 
-      return;
+      captchaInput.value = "";
 
+      authError.textContent = "";
+
+      captchaInput.focus();
     }
+  );
 
 
-    localStorage.setItem(
+  authForm.addEventListener(
+    "submit",
+    event => {
+      event.preventDefault();
 
-      USER_KEY,
+      const name =
+        authName.value.trim();
 
-      JSON.stringify({
-        name,
-        age
-      })
+      const age =
+        Number(authAge.value);
 
-    );
+      const enteredCaptcha =
+        captchaInput.value
+          .trim()
+          .toUpperCase();
 
-
-    authForm.reset();
-
-    showApp();
-
-    showToast(
-      "Welcome to GridCards!"
-    );
-
-  }
-);
+      authError.textContent =
+        "";
 
 
-refreshCaptcha.addEventListener(
-  "click",
-  () => {
+      if (!name) {
+        authError.textContent =
+          "Please enter your name.";
 
-    generateCaptcha();
+        return;
+      }
 
-    captchaInput.value =
-      "";
 
-    captchaInput.focus();
+      if (
+        !Number.isInteger(age) ||
+        age < 13 ||
+        age > 120
+      ) {
+        authError.textContent =
+          "Please enter a valid age.";
 
-  }
-);
+        return;
+      }
+
+
+      if (
+        enteredCaptcha !==
+        captchaCode
+      ) {
+        authError.textContent =
+          "Incorrect captcha.";
+
+        captchaInput.value = "";
+
+        generateCaptcha();
+
+        return;
+      }
+
+
+      localStorage.setItem(
+        USER_KEY,
+        JSON.stringify({
+          name,
+          age
+        })
+      );
+
+
+      showApp();
+
+      showToast(
+        `Welcome, ${name}!`
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+   DISPLAYED CONTENT
+========================================================= */
+
+function displayContent(post) {
+  const translation =
+    post.displayLanguage &&
+    post.translations?.[
+      post.displayLanguage
+    ];
+
+  return {
+    title:
+      translation?.title ||
+      post.title,
+
+    description:
+      translation?.description ||
+      post.description
+  };
+}
 
 
 /* =========================================================
@@ -806,7 +694,6 @@ refreshCaptcha.addEventListener(
 ========================================================= */
 
 function renderPosts() {
-
   const query =
     search.value
       .trim()
@@ -814,59 +701,49 @@ function renderPosts() {
 
 
   const filtered =
-    posts.filter(
-      post => {
+    posts.filter(post => {
+      const text =
+        `${post.title} ${post.description}`
+          .toLowerCase();
 
-        const text =
-          `${post.title} ${post.description}`
-            .toLowerCase();
-
-        return text.includes(
-          query
-        );
-
-      }
-    );
+      return text.includes(
+        query
+      );
+    });
 
 
-  grid.innerHTML =
-    "";
+  grid.innerHTML = "";
 
 
   filtered.forEach(
     (post, index) => {
 
       const card =
-        createCard(
-          post
-        );
-
+        createCard(post);
 
       card.style.transitionDelay =
-        `${index * 35}ms`;
-
+        `${Math.min(
+          index * 35,
+          280
+        )}ms`;
 
       grid.appendChild(
         card
       );
 
-
       requestAnimationFrame(
         () => {
-
           card.classList.add(
             "visible"
           );
-
         }
       );
-
     }
   );
 
 
   emptyState.hidden =
-    filtered.length > 0;
+    filtered.length !== 0;
 
 
   postCount.textContent =
@@ -875,7 +752,6 @@ function renderPosts() {
         ? "post"
         : "posts"
     }`;
-
 }
 
 
@@ -883,21 +759,14 @@ function renderPosts() {
    CREATE CARD
 ========================================================= */
 
-function createCard(
-  post
-) {
-
-  const template =
+function createCard(post) {
+  const fragment =
     document
       .getElementById(
         "card-template"
-      );
-
-
-  const fragment =
-    template.content.cloneNode(
-      true
-    );
+      )
+      .content
+      .cloneNode(true);
 
 
   const card =
@@ -905,18 +774,15 @@ function createCard(
       ".card"
     );
 
-
   const image =
     fragment.querySelector(
       ".card-image"
     );
 
-
   const title =
     fragment.querySelector(
       ".card-title"
     );
-
 
   const description =
     fragment.querySelector(
@@ -924,28 +790,8 @@ function createCard(
     );
 
 
-  const audio =
-    fragment.querySelector(
-      ".audio"
-    );
-
-
-  const comment =
-    fragment.querySelector(
-      ".comment"
-    );
-
-
-  const share =
-    fragment.querySelector(
-      ".share"
-    );
-
-
-  const deleteButton =
-    fragment.querySelector(
-      ".delete"
-    );
+  const content =
+    displayContent(post);
 
 
   card.dataset.id =
@@ -958,108 +804,93 @@ function createCard(
       post.title
     );
 
-
   image.alt =
-    post.title;
+    content.title;
 
 
-  image.onerror =
-    () => {
+  image.onerror = () => {
+    image.onerror = null;
 
-      image.onerror =
-        null;
-
-      image.src =
-        placeholderImage(
-          post.title
-        );
-
-    };
+    image.src =
+      placeholderImage(
+        post.title
+      );
+  };
 
 
   title.textContent =
-    post.title;
-
+    content.title;
 
   description.textContent =
-    post.description;
+    content.description;
 
 
-  audio.addEventListener(
-    "click",
-    event => {
+  fragment
+    .querySelector(".audio")
+    .addEventListener(
+      "click",
+      event => {
+        event.stopPropagation();
 
-      event.stopPropagation();
-
-      speakPost(
-        post
-      );
-
-    }
-  );
+        speakPost(post);
+      }
+    );
 
 
-  comment.addEventListener(
-    "click",
-    event => {
+  fragment
+    .querySelector(".comment")
+    .addEventListener(
+      "click",
+      event => {
+        event.stopPropagation();
 
-      event.stopPropagation();
-
-      openComments(
-        post
-      );
-
-    }
-  );
+        openComments(post);
+      }
+    );
 
 
-  share.addEventListener(
-    "click",
-    event => {
+  fragment
+    .querySelector(".share")
+    .addEventListener(
+      "click",
+      event => {
+        event.stopPropagation();
 
-      event.stopPropagation();
+        sharePost(post);
+      }
+    );
 
-      sharePost(
-        post
-      );
 
-    }
-  );
+  const deleteButton =
+    fragment.querySelector(
+      ".delete"
+    );
 
 
   if (
     post.creator ===
     CURRENT_USER
   ) {
-
     deleteButton.hidden =
       false;
-
 
     deleteButton.addEventListener(
       "click",
       event => {
-
         event.stopPropagation();
 
         deletePost(
           post.id
         );
-
       }
     );
-
   }
 
 
   card.addEventListener(
     "click",
     () => {
-
-      openDetail(
-        post
-      );
-
+      openDetail(post);
     }
   );
 
@@ -1067,39 +898,32 @@ function createCard(
   card.addEventListener(
     "keydown",
     event => {
-
       if (
         event.key === "Enter" ||
         event.key === " "
       ) {
-
         event.preventDefault();
 
-        openDetail(
-          post
-        );
-
+        openDetail(post);
       }
-
     }
   );
 
 
   return card;
-
 }
 
 
 /* =========================================================
-   DETAIL
+   POST DETAIL
 ========================================================= */
 
-function openDetail(
-  post
-) {
-
+function openDetail(post) {
   activePost =
-    post;
+    posts.find(
+      item =>
+        item.id === post.id
+    ) || post;
 
 
   renderDetail();
@@ -1109,53 +933,56 @@ function openDetail(
     "aria-hidden",
     "false"
   );
-
-
-  detailClose.focus();
-
 }
 
 
 function closeDetail() {
-
   postDetail.setAttribute(
     "aria-hidden",
     "true"
   );
 
-  activePost =
-    null;
+  activePost = null;
 
+  detailLangSelect.value =
+    "";
 }
 
 
 function renderDetail() {
+  if (!activePost) return;
 
-  if (!activePost)
-    return;
+
+  const content =
+    displayContent(
+      activePost
+    );
 
 
   detailTitle.textContent =
-    activePost.title;
+    content.title;
 
 
   detailDescription.textContent =
-    activePost.description;
+    content.description;
 
 
   detailShownLang.textContent =
     activePost.displayLanguage
-      ? activePost.displayLanguage.toUpperCase()
+      ? languageName(
+          activePost.displayLanguage
+        ).toUpperCase()
       : "ORIGINAL";
+
+
+  detailLangSelect.value =
+    activePost.displayLanguage ||
+    "";
 
 
   detailDelete.hidden =
     activePost.creator !==
     CURRENT_USER;
-
-
-  detailLangSelect.value =
-    "";
 
 
   renderDetailMedia();
@@ -1165,43 +992,42 @@ function renderDetail() {
     detailCommentsList,
     activePost
   );
-
 }
 
 
-function renderDetailMedia() {
+/* =========================================================
+   MEDIA
+========================================================= */
 
-  detailMedia.innerHTML =
-    "";
+function renderDetailMedia() {
+  detailMedia.innerHTML = "";
+
+
+  const url =
+    activePost?.img || "";
 
 
   if (
-    activePost.img &&
-    /\.(mp4|webm|ogg)$/i.test(
-      activePost.img
+    /\.(mp4|webm|ogg)(\?.*)?$/i.test(
+      url
     )
   ) {
-
     const video =
       document.createElement(
         "video"
       );
 
-    video.src =
-      activePost.img;
+    video.src = url;
 
-    video.controls =
-      true;
+    video.controls = true;
 
-    video.playsInline =
-      true;
+    video.playsInline = true;
 
     detailMedia.appendChild(
       video
     );
 
     return;
-
   }
 
 
@@ -1212,7 +1038,7 @@ function renderDetailMedia() {
 
 
   image.src =
-    activePost.img ||
+    url ||
     placeholderImage(
       activePost.title
     );
@@ -1222,24 +1048,19 @@ function renderDetailMedia() {
     activePost.title;
 
 
-  image.onerror =
-    () => {
+  image.onerror = () => {
+    image.onerror = null;
 
-      image.onerror =
-        null;
-
-      image.src =
-        placeholderImage(
-          activePost.title
-        );
-
-    };
+    image.src =
+      placeholderImage(
+        activePost.title
+      );
+  };
 
 
   detailMedia.appendChild(
     image
   );
-
 }
 
 
@@ -1251,17 +1072,18 @@ function renderComments(
   container,
   post
 ) {
-
-  container.innerHTML =
-    "";
+  container.innerHTML = "";
 
 
   const comments =
-    post.comments || [];
+    Array.isArray(
+      post.comments
+    )
+      ? post.comments
+      : [];
 
 
   if (!comments.length) {
-
     const empty =
       document.createElement(
         "p"
@@ -1278,7 +1100,6 @@ function renderComments(
     );
 
     return;
-
   }
 
 
@@ -1300,17 +1121,15 @@ function renderComments(
         );
 
 
-      const translated =
-        activePost &&
-        activePost.displayLanguage &&
-        comment.translations &&
-        comment.translations[
-          activePost.displayLanguage
+      const translatedText =
+        post.displayLanguage &&
+        comment.translations?.[
+          post.displayLanguage
         ];
 
 
       text.textContent =
-        translated ||
+        translatedText ||
         comment.text;
 
 
@@ -1321,16 +1140,15 @@ function renderComments(
 
 
       time.textContent =
-        new Date(
-          comment.created
-        ).toLocaleString();
+        comment.created
+          ? new Date(
+              comment.created
+            ).toLocaleString()
+          : "";
 
 
-      item.appendChild(
-        text
-      );
-
-      item.appendChild(
+      item.append(
+        text,
         time
       );
 
@@ -1338,102 +1156,67 @@ function renderComments(
       container.appendChild(
         item
       );
-
     }
   );
-
 }
 
 
 function addComment(
   post,
-  text
+  rawText
 ) {
+  if (!post)
+    return false;
 
-  const clean =
-    text.trim();
+
+  const text =
+    rawText.trim();
 
 
-  if (!clean) {
-
+  if (!text) {
     showToast(
       "Write a comment first."
     );
 
     return false;
-
   }
 
 
-  if (!post.comments) {
-
-    post.comments =
-      [];
-
-  }
+  post.comments ||= [];
 
 
   post.comments.push({
-
-    id:
-      createId(),
-
-    text:
-      clean,
-
-    created:
-      Date.now(),
-
-    translations:
-      {}
-
+    id: createId(),
+    text,
+    created: Date.now(),
+    translations: {}
   });
 
 
   savePosts();
 
-
-  sync({
-    type:
-      "update",
-    posts
-  });
-
-
-  updateProfile();
+  sync();
 
 
   return true;
-
 }
 
 
-/* =========================================================
-   QUICK COMMENTS
-========================================================= */
-
-function openComments(
-  post
-) {
-
+function openComments(post) {
   commentPost =
     post;
-
 
   renderComments(
     commentsList,
     post
   );
 
-
   commentInput.value =
     "";
-
 
   openModal(
     commentModal
   );
-
 
   setTimeout(
     () => {
@@ -1441,33 +1224,22 @@ function openComments(
     },
     50
   );
-
 }
 
 
 /* =========================================================
-   NEW POST
+   CREATE POST
 ========================================================= */
 
 function openNewPostModal() {
-
-  newTitle.value =
-    "";
-
-  newDesc.value =
-    "";
-
-  newImgUrl.value =
-    "";
-
-  newImgFile.value =
-    "";
-
+  newTitle.value = "";
+  newDesc.value = "";
+  newImgUrl.value = "";
+  newImgFile.value = "";
 
   openModal(
     newPostModal
   );
-
 
   setTimeout(
     () => {
@@ -1475,12 +1247,10 @@ function openNewPostModal() {
     },
     50
   );
-
 }
 
 
 function createPost() {
-
   const title =
     newTitle.value.trim();
 
@@ -1495,59 +1265,61 @@ function createPost() {
 
 
   if (!title) {
-
     showToast(
       "Please enter a title."
     );
 
     return;
-
   }
 
 
   if (!description) {
-
     showToast(
       "Please enter a description."
     );
 
     return;
-
   }
 
 
-  if (imageUrl) {
+  if (
+    imageUrl &&
+    !/^https?:\/\//i.test(
+      imageUrl
+    )
+  ) {
+    showToast(
+      "Please enter a valid image URL."
+    );
 
-    if (
-      !/^https?:\/\//i.test(
-        imageUrl
-      )
-    ) {
-
-      showToast(
-        "Enter a valid image URL."
-      );
-
-      return;
-
-    }
-
+    return;
   }
 
 
   if (file) {
 
     if (
-      file.size >
-      2500000
+      !file.type.startsWith(
+        "image/"
+      )
     ) {
-
       showToast(
-        "Image must be under 2.5 MB."
+        "Please select an image."
       );
 
       return;
+    }
 
+
+    if (
+      file.size >
+      2500000
+    ) {
+      showToast(
+        "Image must be smaller than 2.5 MB."
+      );
+
+      return;
     }
 
 
@@ -1555,44 +1327,42 @@ function createPost() {
       new FileReader();
 
 
-    reader.onload =
-      () => {
+    reader.onload = () => {
+      finishPost(
+        String(
+          reader.result
+        )
+      );
+    };
 
-        finishPost(
-          String(
-            reader.result
-          )
-        );
 
-      };
+    reader.onerror = () => {
+      showToast(
+        "Could not read the image."
+      );
+    };
 
 
     reader.readAsDataURL(
       file
     );
 
-
     return;
-
   }
 
 
   finishPost(
     imageUrl
   );
-
 }
 
 
 function finishPost(
   image
 ) {
-
-  const post = {
-
+  posts.unshift({
     id:
-      "post-" +
-      createId(),
+      `post-${createId()}`,
 
     title:
       newTitle.value.trim(),
@@ -1610,24 +1380,16 @@ function finishPost(
       [],
 
     translations:
-      {}
+      {},
 
-  };
-
-
-  posts.unshift(
-    post
-  );
+    displayLanguage:
+      ""
+  });
 
 
   savePosts();
 
-
-  sync({
-    type:
-      "update",
-    posts
-  });
+  sync();
 
 
   closeModal(
@@ -1637,14 +1399,12 @@ function finishPost(
 
   renderPosts();
 
-
   updateProfile();
 
 
   showToast(
     "Post published!"
   );
-
 }
 
 
@@ -1653,13 +1413,12 @@ function finishPost(
 ========================================================= */
 
 function deletePost(
-  id
+  postId
 ) {
-
   const post =
     posts.find(
       item =>
-        item.id === id
+        item.id === postId
     );
 
 
@@ -1671,63 +1430,50 @@ function deletePost(
     post.creator !==
     CURRENT_USER
   ) {
-
     showToast(
       "You can only delete your own posts."
     );
 
     return;
-
   }
 
 
-  const confirmed =
-    confirm(
+  if (
+    !window.confirm(
       "Delete this post?"
-    );
-
-
-  if (!confirmed)
+    )
+  ) {
     return;
+  }
 
 
   posts =
     posts.filter(
       item =>
-        item.id !== id
+        item.id !== postId
     );
 
 
   savePosts();
 
-
-  sync({
-    type:
-      "update",
-    posts
-  });
+  sync();
 
 
   if (
-    activePost &&
-    activePost.id === id
+    activePost?.id ===
+    postId
   ) {
-
     closeDetail();
-
   }
 
 
   renderPosts();
 
-
   updateProfile();
-
 
   showToast(
     "Post deleted."
   );
-
 }
 
 
@@ -1735,35 +1481,37 @@ function deletePost(
    TEXT TO SPEECH
 ========================================================= */
 
-function speakPost(
-  post
-) {
-
+function speakPost(post) {
   if (
     !window.speechSynthesis
   ) {
-
     showToast(
       "Text-to-speech is not supported."
     );
 
     return;
-
   }
 
 
-  speechSynthesis.cancel();
-
-
-  const text =
-    `${post.title}. ${post.description}`;
+  const content =
+    displayContent(post);
 
 
   const utterance =
     new SpeechSynthesisUtterance(
-      text
+      `${content.title}. ${content.description}`
     );
 
+
+  if (
+    post.displayLanguage
+  ) {
+    utterance.lang =
+      post.displayLanguage;
+  }
+
+
+  speechSynthesis.cancel();
 
   speechSynthesis.speak(
     utterance
@@ -1773,69 +1521,64 @@ function speakPost(
   showToast(
     "Playing audio..."
   );
-
 }
 
 
 /* =========================================================
-   SHARING
+   SHARE
 ========================================================= */
 
-async function sharePost(
-  post
-) {
-
+async function sharePost(post) {
   const url =
-    `${location.href.split("#")[0]}#post=${encodeURIComponent(post.id)}`;
+    `${location.origin}${location.pathname}` +
+    `#post=${encodeURIComponent(
+      post.id
+    )}`;
 
 
   try {
 
-    if (
-      navigator.share
-    ) {
-
+    if (navigator.share) {
       await navigator.share({
-
-        title:
-          post.title,
-
-        text:
-          post.description,
-
+        title: post.title,
+        text: post.description,
         url
-
       });
 
       return;
-
     }
 
 
-    await navigator.clipboard.writeText(
-      url
-    );
+    if (
+      navigator.clipboard?.writeText
+    ) {
+      await navigator.clipboard.writeText(
+        url
+      );
+
+      showToast(
+        "Post link copied!"
+      );
+
+      return;
+    }
 
 
     showToast(
-      "Post link copied!"
+      "Sharing is not supported."
     );
 
   } catch (error) {
 
     if (
-      error.name !==
+      error?.name !==
       "AbortError"
     ) {
-
       showToast(
         "Could not share the post."
       );
-
     }
-
   }
-
 }
 
 
@@ -1844,6 +1587,9 @@ async function sharePost(
 ========================================================= */
 
 function populateLanguages() {
+  detailLangSelect.innerHTML =
+    '<option value="">Language</option>';
+
 
   LANGUAGES.forEach(
     ([code, name]) => {
@@ -1862,39 +1608,44 @@ function populateLanguages() {
       detailLangSelect.appendChild(
         option
       );
-
     }
   );
-
 }
 
 
 async function translateText(
   text,
-  language
+  targetLanguage
 ) {
+  if (
+    !text ||
+    !text.trim()
+  ) {
+    return "";
+  }
+
 
   const url =
-    `https://translate.googleapis.com/translate_a/single` +
-    `?client=gtx` +
-    `&sl=auto` +
-    `&tl=${encodeURIComponent(language)}` +
-    `&dt=t` +
-    `&q=${encodeURIComponent(text)}`;
+    "https://translate.googleapis.com/translate_a/single" +
+    "?client=gtx" +
+    "&sl=auto" +
+    `&tl=${encodeURIComponent(
+      targetLanguage
+    )}` +
+    "&dt=t" +
+    `&q=${encodeURIComponent(
+      text
+    )}`;
 
 
   const response =
-    await fetch(
-      url
-    );
+    await fetch(url);
 
 
   if (!response.ok) {
-
     throw new Error(
-      "Translation failed"
+      `Translation HTTP ${response.status}`
     );
-
   }
 
 
@@ -1902,18 +1653,27 @@ async function translateText(
     await response.json();
 
 
+  if (
+    !Array.isArray(data) ||
+    !Array.isArray(data[0])
+  ) {
+    throw new Error(
+      "Invalid translation response."
+    );
+  }
+
+
   return data[0]
     .map(
       part =>
-        part[0]
+        part?.[0] || ""
     )
-    .join("");
-
+    .join("")
+    .trim();
 }
 
 
 async function translatePost() {
-
   if (!activePost)
     return;
 
@@ -1923,13 +1683,46 @@ async function translatePost() {
 
 
   if (!language) {
-
     showToast(
       "Select a language first."
     );
 
     return;
+  }
 
+
+  /*
+    Already translated?
+    Just show the stored translation.
+  */
+
+  const existing =
+    activePost
+      .translations?.[
+        language
+      ];
+
+
+  if (
+    existing?.title &&
+    existing?.description
+  ) {
+    activePost.displayLanguage =
+      language;
+
+    savePosts();
+
+    renderDetail();
+
+    renderPosts();
+
+    showToast(
+      `Showing ${languageName(
+        language
+      )}.`
+    );
+
+    return;
   }
 
 
@@ -1942,99 +1735,133 @@ async function translatePost() {
 
   try {
 
-    const title =
-      await translateText(
+    /*
+      Translate TITLE and DESCRIPTION.
+    */
+
+    const [
+      translatedTitle,
+      translatedDescription
+    ] = await Promise.all([
+      translateText(
         activePost.title,
         language
-      );
+      ),
 
-
-    const description =
-      await translateText(
+      translateText(
         activePost.description,
         language
-      );
+      )
+    ]);
 
 
     if (
-      !activePost.translations
+      !translatedTitle ||
+      !translatedDescription
     ) {
-
-      activePost.translations =
-        {};
-
+      throw new Error(
+        "Translation returned empty text."
+      );
     }
+
+
+    /*
+      Save translation.
+    */
+
+    activePost.translations ||= {};
 
 
     activePost.translations[
       language
     ] = {
+      title:
+        translatedTitle,
 
-      title,
-      description
-
+      description:
+        translatedDescription
     };
 
 
-    if (
-      activePost.comments
+    /*
+      Translate comments.
+    */
+
+    for (
+      const comment
+      of activePost.comments || []
     ) {
 
-      for (
-        const comment
-        of activePost.comments
-      ) {
+      try {
 
-        const translated =
+        comment.translations ||= {};
+
+        comment.translations[
+          language
+        ] =
           await translateText(
             comment.text,
             language
           );
 
+      } catch (error) {
 
-        if (
-          !comment.translations
-        ) {
-
-          comment.translations =
-            {};
-
-        }
-
-
-        comment.translations[
-          language
-        ] =
-          translated;
-
+        console.warn(
+          "Comment translation failed:",
+          error
+        );
       }
-
     }
 
+
+    /*
+      THIS CONTROLS WHAT IS DISPLAYED.
+    */
 
     activePost.displayLanguage =
       language;
 
 
+    /*
+      Save everything.
+    */
+
     savePosts();
 
 
-    renderDetail();
+    /*
+      Sync other tabs.
+    */
 
+    sync();
+
+
+    /*
+      Immediately update
+      the current UI.
+    */
+
+    renderDetail();
 
     renderPosts();
 
+    updateProfile();
+
 
     showToast(
-      "Translation complete!"
+      `Translated to ${languageName(
+        language
+      )}!`
     );
 
 
   } catch (error) {
 
     console.error(
+      "Translation error:",
       error
     );
+
 
     showToast(
       "Translation failed. Check your internet connection."
@@ -2047,17 +1874,13 @@ async function translatePost() {
 
     detailTranslate.textContent =
       "Translate";
-
   }
-
 }
 
 
-detailTranslate.addEventListener(
-  "click",
-  translatePost
-);
-
+/* =========================================================
+   SHOW ORIGINAL
+========================================================= */
 
 detailShowOriginal.addEventListener(
   "click",
@@ -2073,11 +1896,16 @@ detailShowOriginal.addEventListener(
 
     savePosts();
 
+    sync();
+
 
     renderDetail();
 
     renderPosts();
 
+
+    detailLangSelect.value =
+      "";
   }
 );
 
@@ -2089,49 +1917,21 @@ detailShowOriginal.addEventListener(
 function openModal(
   modal
 ) {
-
   modal.setAttribute(
     "aria-hidden",
     "false"
   );
-
 }
 
 
 function closeModal(
   modal
 ) {
-
   modal.setAttribute(
     "aria-hidden",
     "true"
   );
-
 }
-
-
-closeModalButton.addEventListener(
-  "click",
-  () => {
-
-    closeModal(
-      commentModal
-    );
-
-  }
-);
-
-
-cancelCreate.addEventListener(
-  "click",
-  () => {
-
-    closeModal(
-      newPostModal
-    );
-
-  }
-);
 
 
 document
@@ -2147,22 +1947,18 @@ document
             event.target ===
             modal
           ) {
-
             closeModal(
               modal
             );
-
           }
-
         }
       );
-
     }
   );
 
 
 /* =========================================================
-   COMMENTS EVENTS
+   COMMENT EVENTS
 ========================================================= */
 
 postComment.addEventListener(
@@ -2184,12 +1980,12 @@ postComment.addEventListener(
       commentInput.value =
         "";
 
+      updateProfile();
+
       showToast(
         "Comment posted!"
       );
-
     }
-
   }
 );
 
@@ -2210,12 +2006,22 @@ detailPostComment.addEventListener(
 
       renderDetail();
 
+      updateProfile();
+
       showToast(
         "Comment posted!"
       );
-
     }
+  }
+);
 
+
+closeModalButton.addEventListener(
+  "click",
+  () => {
+    closeModal(
+      commentModal
+    );
   }
 );
 
@@ -2235,14 +2041,17 @@ detailAudio.addEventListener(
   () => {
 
     if (activePost) {
-
       speakPost(
         activePost
       );
-
     }
-
   }
+);
+
+
+detailTranslate.addEventListener(
+  "click",
+  translatePost
 );
 
 
@@ -2251,13 +2060,10 @@ detailShare.addEventListener(
   () => {
 
     if (activePost) {
-
       sharePost(
         activePost
       );
-
     }
-
   }
 );
 
@@ -2267,19 +2073,16 @@ detailDelete.addEventListener(
   () => {
 
     if (activePost) {
-
       deletePost(
         activePost.id
       );
-
     }
-
   }
 );
 
 
 /* =========================================================
-   SEARCH
+   SEARCH / HOME
 ========================================================= */
 
 search.addEventListener(
@@ -2296,7 +2099,6 @@ homeBtn.addEventListener(
       "";
 
     renderPosts();
-
   }
 );
 
@@ -2323,31 +2125,21 @@ createPostButton.addEventListener(
 );
 
 
+cancelCreate.addEventListener(
+  "click",
+  () => {
+    closeModal(
+      newPostModal
+    );
+  }
+);
+
+
 /* =========================================================
    PROFILE
 ========================================================= */
 
-function getUser() {
-
-  try {
-
-    return JSON.parse(
-      localStorage.getItem(
-        USER_KEY
-      )
-    );
-
-  } catch {
-
-    return null;
-
-  }
-
-}
-
-
 function updateProfile() {
-
   const user =
     getUser();
 
@@ -2391,7 +2183,6 @@ function updateProfile() {
         ),
       0
     );
-
 }
 
 
@@ -2404,7 +2195,6 @@ profileBtn.addEventListener(
     openModal(
       profileModal
     );
-
   }
 );
 
@@ -2412,11 +2202,9 @@ profileBtn.addEventListener(
 closeProfile.addEventListener(
   "click",
   () => {
-
     closeModal(
       profileModal
     );
-
   }
 );
 
@@ -2429,16 +2217,17 @@ logoutButton.addEventListener(
       USER_KEY
     );
 
+
     closeModal(
       profileModal
     );
+
 
     showLogin();
 
     showToast(
       "You have been logged out."
     );
-
   }
 );
 
@@ -2450,13 +2239,12 @@ logoutButton.addEventListener(
 function setFontSize(
   size
 ) {
-
   fontSize =
     Math.max(
       13,
       Math.min(
-        19,
-        size
+        20,
+        Number(size) || 15
       )
     );
 
@@ -2471,18 +2259,15 @@ function setFontSize(
     FONT_KEY,
     String(fontSize)
   );
-
 }
 
 
 incText.addEventListener(
   "click",
   () => {
-
     setFontSize(
       fontSize + 1
     );
-
   }
 );
 
@@ -2490,11 +2275,9 @@ incText.addEventListener(
 decText.addEventListener(
   "click",
   () => {
-
     setFontSize(
       fontSize - 1
     );
-
   }
 );
 
@@ -2506,39 +2289,35 @@ decText.addEventListener(
 function setContrast(
   enabled
 ) {
-
   document.documentElement.classList.toggle(
     "high-contrast",
-    enabled
-  );
-
-
-  localStorage.setItem(
-    CONTRAST_KEY,
-    String(enabled)
+    Boolean(enabled)
   );
 
 
   contrastToggle.checked =
-    enabled;
+    Boolean(enabled);
 
+
+  localStorage.setItem(
+    CONTRAST_KEY,
+    String(Boolean(enabled))
+  );
 }
 
 
 contrastToggle.addEventListener(
   "change",
   event => {
-
     setContrast(
       event.target.checked
     );
-
   }
 );
 
 
 /* =========================================================
-   ESCAPE KEY
+   ESCAPE
 ========================================================= */
 
 document.addEventListener(
@@ -2549,9 +2328,7 @@ document.addEventListener(
       event.key !==
       "Escape"
     ) {
-
       return;
-
     }
 
 
@@ -2568,7 +2345,6 @@ document.addEventListener(
     );
 
     closeDetail();
-
   }
 );
 
@@ -2576,6 +2352,19 @@ document.addEventListener(
 /* =========================================================
    CROSS-TAB SYNC
 ========================================================= */
+
+function sync() {
+  if (!channel)
+    return;
+
+  channel.postMessage({
+    type:
+      "posts-updated",
+
+    posts
+  });
+}
+
 
 function setupSync() {
 
@@ -2585,7 +2374,7 @@ function setupSync() {
 
     channel =
       new BroadcastChannel(
-        "gridcards_channel"
+        "gridcards-sync-v11"
       );
 
 
@@ -2593,45 +2382,60 @@ function setupSync() {
       "message",
       event => {
 
+        const data =
+          event.data;
+
+
         if (
-          event.data?.type ===
-          "update"
+          data?.type !==
+          "posts-updated"
         ) {
-
-          posts =
-            event.data.posts;
-
-          savePosts();
-
-          renderPosts();
-
-          updateProfile();
-
-          if (activePost) {
-
-            const updated =
-              posts.find(
-                post =>
-                  post.id ===
-                  activePost.id
-              );
-
-            if (updated) {
-
-              activePost =
-                updated;
-
-              renderDetail();
-
-            }
-
-          }
-
+          return;
         }
 
+
+        if (
+          !Array.isArray(
+            data.posts
+          )
+        ) {
+          return;
+        }
+
+
+        posts =
+          data.posts.map(
+            normalisePost
+          );
+
+
+        savePosts();
+
+        renderPosts();
+
+        updateProfile();
+
+
+        if (activePost) {
+
+          const updated =
+            posts.find(
+              post =>
+                post.id ===
+                activePost.id
+            );
+
+
+          if (updated) {
+
+            activePost =
+              updated;
+
+            renderDetail();
+          }
+        }
       }
     );
-
   }
 
 
@@ -2643,9 +2447,7 @@ function setupSync() {
         event.key !==
         STORAGE_KEY
       ) {
-
         return;
-
       }
 
 
@@ -2656,25 +2458,8 @@ function setupSync() {
       renderPosts();
 
       updateProfile();
-
     }
   );
-
-}
-
-
-function sync(
-  data
-) {
-
-  if (channel) {
-
-    channel.postMessage(
-      data
-    );
-
-  }
-
 }
 
 
@@ -2682,8 +2467,7 @@ function sync(
    HASH SHARING
 ========================================================= */
 
-function handleSharedPost() {
-
+function handleHashPost() {
   const match =
     location.hash.match(
       /^#post=(.+)$/
@@ -2694,7 +2478,7 @@ function handleSharedPost() {
     return;
 
 
-  const id =
+  const postId =
     decodeURIComponent(
       match[1]
     );
@@ -2703,29 +2487,24 @@ function handleSharedPost() {
   const post =
     posts.find(
       item =>
-        item.id === id
+        item.id ===
+        postId
     );
 
 
   if (post) {
-
-    openDetail(
-      post
-    );
-
+    openDetail(post);
   }
-
 }
 
 
 /* =========================================================
-   INITIALISE
+   INIT
 ========================================================= */
 
 function init() {
 
   populateLanguages();
-
 
   setFontSize(
     fontSize
@@ -2739,14 +2518,20 @@ function init() {
   );
 
 
-  setupSync();
+  setupAuthentication();
 
+  setupSync();
 
   renderPosts();
 
 
+  const user =
+    getUser();
+
+
   if (
-    isLoggedIn()
+    user?.name &&
+    Number(user.age) >= 13
   ) {
 
     showApp();
@@ -2754,21 +2539,19 @@ function init() {
   } else {
 
     showLogin();
-
   }
 
 
   window.addEventListener(
     "hashchange",
-    handleSharedPost
+    handleHashPost
   );
 
 
   setTimeout(
-    handleSharedPost,
-    100
+    handleHashPost,
+    150
   );
-
 }
 
 
